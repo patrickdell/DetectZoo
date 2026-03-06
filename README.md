@@ -1,6 +1,6 @@
 # DetectZoo
 
-**A unified toolkit for detecting AI-generated content**
+![DetectZoo](./logo.jpg)
 
 DetectZoo is a research-oriented Python toolkit that provides **implementations of AI-generated content detectors across multiple modalities**, including **text, images, and audio**.
 
@@ -128,8 +128,6 @@ metrics = compute_metrics(
 
   * Consistent interface across all detectors — every detector returns a `DetectionResult` with a score, label, confidence, and metadata
 
-* **12 detectors** spanning three modalities, including published research methods (DetectGPT, Fast-DetectGPT, Binoculars) and practical baselines
-
 * **Reproducible implementations**
 
   * Clean implementations of published detection methods
@@ -204,9 +202,7 @@ python examples/text_detection.py --device cuda
 
 ## Contributing
 
-We welcome community contributions.
-
-You can contribute by:
+We welcome community contributions. You can contribute by:
 
 * Adding new detectors (see the extensibility section above)
 * Improving existing implementations
