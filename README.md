@@ -10,7 +10,7 @@ DetectZoo aggregates detection approaches into a **single, unified API**, allowi
 
 ---
 
-# Installation
+## Installation
 
 ```bash
 pip install detectzoo
@@ -29,14 +29,14 @@ pip install -e ".[all]"
 Install only the dependencies you need:
 
 ```bash
-pip install detectzoo[all]     # everything above
+pip install detectzoo[all]     # all dependencies
 pip install detectzoo[text]    # transformers, accelerate
 pip install detectzoo[dev]     # all + pytest, ruff
 ```
 
 ---
 
-# Quick Start
+## Quick Start
 
 ### Detect AI-generated text
 
@@ -64,11 +64,11 @@ print(list_detectors("text"))      # text-only
 
 ---
 
-# Supported Detectors
+## Supported Detectors
 
 DetectZoo organizes detectors by **modality**. Every detector follows the same interface: `detector.predict(input) → DetectionResult`.
 
-## Text
+### Text
 
 Detectors for identifying LLM-generated text. Each accepts a string (or file path) and uses a HuggingFace causal language model internally.
 
@@ -80,7 +80,9 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 
 ---
 
-# DetectionResult
+## Core Components
+
+### DetectionResult
 
 Every `predict()` call returns a `DetectionResult` dataclass:
 
@@ -114,7 +116,7 @@ metrics = compute_metrics(
 
 ---
 
-# Features
+## Features
 
 * **Multimodal detection**
 
@@ -147,19 +149,19 @@ metrics = compute_metrics(
 ---
 
 
-# Design Philosophy
+## Design Philosophy
 
 DetectZoo is built around three principles.
 
-## 1. Reproducibility
+### 1. Reproducibility
 
 Many detection methods are difficult to reproduce due to missing implementation details. DetectZoo provides **clean and standardized implementations of published detectors** with references to the original papers.
 
-## 2. Accessibility
+### 2. Accessibility
 
 Users should not need to reimplement detectors. DetectZoo provides **simple imports and unified interfaces**. Loading any detector is a single function call.
 
-## 3. Extensibility
+### 3. Extensibility
 
 Adding a new detector takes a single file. Subclass `BaseDetector`, implement `predict`, and register with a decorator:
 
@@ -184,7 +186,7 @@ The detector is then immediately available via `load_detector("my_detector")`. S
 
 ---
 
-# Examples
+## Examples
 
 The `examples/` directory contains self-contained scripts you can run immediately:
 
@@ -200,7 +202,7 @@ python examples/text_detection.py --device cuda
 
 ---
 
-# Contributing
+## Contributing
 
 We welcome community contributions.
 
@@ -214,7 +216,7 @@ You can contribute by:
 
 ---
 
-# Roadmap
+## Roadmap
 
 Planned improvements include:
 
