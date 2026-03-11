@@ -1,7 +1,7 @@
 """DetectGPT — perturbation-based LLM-text detector.
 
 Reference:
-    Eric Mitchell et al., "DetectGPT: Zero-Shot Machine-Generated Text
+    Mitchell et al., "DetectGPT: Zero-Shot Machine-Generated Text
     Detection using Probability Curvature", ICML 2023.
 
 The key idea: machine-generated text sits near local maxima of the

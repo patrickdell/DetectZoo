@@ -1,5 +1,9 @@
 """Entropy-based detector.
 
+Reference:
+    Lavergne et al., "Detecting Fake Content with Relative
+    Entropy Scoring", 2008.
+
 Measures the average predictive entropy of the model's next-token
 distribution.  When the model is confident (low entropy) the text is
 more likely to be machine-generated.

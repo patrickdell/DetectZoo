@@ -1,5 +1,9 @@
 """Log-Likelihood baseline detector.
 
+Reference:
+    Gehrmann et al., "GLTR: Statistical Detection and
+    Visualization of Generated Text", ACL 2019.
+
 Scores text by average token log-probability under a causal LM.
 Machine-generated text tends to have *higher* average log-prob (lower
 perplexity) than human text, so the score is negated: higher score → more

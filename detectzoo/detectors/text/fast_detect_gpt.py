@@ -1,7 +1,7 @@
 """Fast-DetectGPT — perturbation-free probability-curvature detector.
 
 Reference:
-    Guangsheng Bao et al., "Fast-DetectGPT: Efficient Zero-Shot Detection
+    Bao et al., "Fast-DetectGPT: Efficient Zero-Shot Detection
     of Machine-Generated Text via Conditional Probability Curvature",
     ICLR 2024.
 

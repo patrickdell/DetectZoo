@@ -1,8 +1,8 @@
 """Binoculars detector — cross-perplexity ratio from two LMs.
 
 Reference:
-    Artidoro Pagnoni et al., "Binoculars: Zero-Shot Detection of
-    LLM-Generated Text", 2024.
+    Hans et al., "Spotting LLMs With Binoculars: Zero-Shot
+    Detection of Machine-Generated Text", Arxiv 2024.
 
 The detector uses an *observer* and a *performer* model.  For human
 text both models have roughly equal perplexity, yielding a ratio close

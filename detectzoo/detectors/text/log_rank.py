@@ -1,5 +1,9 @@
 """Log-Rank baseline detector.
 
+Reference:
+    Gehrmann et al., "GLTR: Statistical Detection and
+    Visualization of Generated Text", ACL 2019.
+
 Instead of raw log-probabilities this detector uses the *rank* of each
 observed token in the model's predicted distribution.  Machine text tends
 to pick high-probability (low-rank) tokens, resulting in lower average
