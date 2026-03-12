@@ -7,6 +7,7 @@ from detectzoo.detectors.text.entropy import EntropyDetector
 from detectzoo.detectors.text.fast_detect_gpt import FastDetectGPTDetector
 from detectzoo.detectors.text.log_likelihood import LogLikelihoodDetector
 from detectzoo.detectors.text.log_rank import LogRankDetector
+from detectzoo.detectors.text.lrr import LRRDetector
 
 __all__ = [
     "BinocularsDetector",
@@ -16,4 +17,5 @@ __all__ = [
     "FastDetectGPTDetector",
     "LogLikelihoodDetector",
     "LogRankDetector",
+    "LRRDetector",
 ]
