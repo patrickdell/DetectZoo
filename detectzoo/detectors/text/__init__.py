@@ -9,6 +9,7 @@ from detectzoo.detectors.text.log_likelihood import LogLikelihoodDetector
 from detectzoo.detectors.text.log_rank import LogRankDetector
 from detectzoo.detectors.text.lrr import LRRDetector
 from detectzoo.detectors.text.npr import NPRDetector
+from detectzoo.detectors.text.rank import RankDetector
 
 __all__ = [
     "BinocularsDetector",
@@ -20,4 +21,5 @@ __all__ = [
     "LogRankDetector",
     "LRRDetector",
     "NPRDetector",
+    "RankDetector",
 ]
