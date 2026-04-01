@@ -135,6 +135,67 @@ The `metadata` dictionary varies by detector and may include values like `avg_lo
 
 ---
 
+## Benchmarking
+
+DetectZoo includes a built-in evaluation pipeline for comparing detectors on labelled datasets.
+
+### Built-in datasets
+
+DetectZoo ships with loaders for popular LLM-generated text detection benchmarks. Data is downloaded and cached automatically on first use — no manual setup needed:
+
+```python
+from detectzoo.datasets import CHEATDataset
+
+# Auto-downloads from GitHub on first call, cached in .detectzoo_data/cheat/
+dataset = CHEATDataset()
+dataset = CHEATDataset(categories=["generation"])   # only first-pass ChatGPT abstracts
+
+# Or point to a local copy
+dataset = CHEATDataset(path="data/cheat/")
+
+for item in dataset:
+    print(item.label, item.data[:80])
+```
+
+| Dataset | Class | Description | Auto-download source |
+|---------|-------|-------------|----------------------|
+| HC3 | `HC3Dataset` | Human vs. ChatGPT answers across multiple domains | HuggingFace (`Hello-SimpleAI/HC3`) |
+| HC3 Plus | `HC3PlusDataset` | Extends HC3 with semantic-invariant tasks (summarisation, translation, paraphrase) | GitHub |
+| CHEAT | `CHEATDataset` | 35k ChatGPT-written academic abstracts (generation, polish, fusion) | GitHub |
+| OpenLLMText | `OpenLLMTextDataset` | ~340k samples from human + GPT-3.5, PaLM, LLaMA, GPT-2 | Zenodo |
+| MAGE | `MAGEDataset` | Multi-LLM text detection testbed for in- and out-of-distribution evaluation | HuggingFace (`yaful/MAGE`) |
+| WritingPrompts | `WritingPromptsDataset` | ~303k human-written stories from r/WritingPrompts | HuggingFace (`euclaise/writingprompts`) |
+| XSum | `XSumDataset` | BBC article summaries — human-written source corpus for detection benchmarks | HuggingFace (`EdinburghNLP/xsum`) |
+
+All datasets cache downloaded files under a `.detectzoo_data/` directory (configurable via `cache_dir`) so subsequent loads are instant.
+
+### Using the evaluator
+
+```python
+from detectzoo import load_detector
+from detectzoo.datasets import BaseDataset, HC3Dataset
+from detectzoo.benchmarks import BenchmarkEvaluator
+
+# Built-in benchmark dataset
+dataset = HC3Dataset(subsets=["finance"])
+
+# Or load a dataset from two directories
+dataset = BaseDataset.from_directory("data/real/", "data/fake/")
+
+# Or from a CSV (text modality)
+dataset = BaseDataset.from_csv("data/texts.csv", text_column="text", label_column="label")
+
+# Evaluate detectors
+evaluator = BenchmarkEvaluator(dataset)
+evaluator.run_and_print([
+    load_detector("log_likelihood"),
+    load_detector("entropy"),
+    load_detector("fast_detectgpt"),
+])
+```
+
+This prints a comparison table with accuracy, precision, recall, F1, and AUROC.
+
 ### Metrics
 
 The `compute_metrics` utility computes standard binary-classification metrics:
