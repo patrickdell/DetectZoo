@@ -41,6 +41,6 @@ Thumbs.db
 *.bin
 *.ckpt
 *.safetensors
-data/
-checkpoints/
-weights/
+.detectzoo_data/
+.checkpoints/
+.weights/
