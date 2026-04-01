@@ -72,11 +72,47 @@ DetectZoo organizes detectors by **modality**. Every detector follows the same i
 
 Detectors for identifying LLM-generated text. Each accepts a string (or file path) and uses a HuggingFace causal language model internally.
 
+**Zero-shot statistical methods:**
+
 | Name | Class | Method |
 |------|-------|--------|
-| `detectgpt` | `DetectGPTDetector` | Perturbation-based probability curvature (Mitchell et al., ICML 2023). Uses T5 to generate perturbations and measures log-prob curvature. |
-| `fast_detectgpt` | `FastDetectGPTDetector` | Perturbation-free curvature (Bao et al., ICLR 2024). Estimates curvature from the model's own conditional distribution without generating perturbations. |
-| `binoculars` | `BinocularsDetector` | Two-model perplexity ratio (Pagnoni et al., 2024). Compares an observer and performer model. |
+| `log_likelihood` | `LogLikelihoodDetector` | Average token log-probability under a causal LM. Lower perplexity → higher score. |
+| `log_rank` | `LogRankDetector` | Average log-rank of observed tokens in the predicted distribution. |
+| `rank` | `RankDetector` | Average raw token rank (no log transform). Distinct from log-rank. |
+| `entropy` | `EntropyDetector` | Average predictive entropy. Machine text tends to have lower entropy. |
+| `lrr` | `LRRDetector` | Log-Likelihood Ratio: −LL / LogRank. Combines two signals into one score. |
+| `lastde` | `LastdeDetector` | Multiscale Distribution Entropy of token log-probability sequences. Training-free; measures regularity of the probability landscape via orbit cosine-similarity histograms. |
+
+**Perturbation / distribution-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `detectgpt` | `DetectGPTDetector` | Perturbation-based probability curvature. Uses T5 to generate perturbations and measures log-prob curvature. |
+| `fast_detectgpt` | `FastDetectGPTDetector` | Perturbation-free curvature. Estimates curvature from the model's own conditional distribution without generating perturbations. |
+| `npr` | `NPRDetector` | Normalized Perturbation Rank. Like DetectGPT but uses log-rank instead of log-probability. |
+| `lastde_pp` | `LastdePPDetector` | Distribution-based extension of Lastde — samples alternative tokens from the model's distribution and computes a normalised discrepancy (like Fast-DetectGPT but using MDE as the scoring function). |
+
+**Multi-model / generation-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `binoculars` | `BinocularsDetector` | Two-model perplexity ratio. Compares an observer and performer model. |
+| `dna_gpt` | `DNAGPTDetector` | Divergent N-Gram Analysis. Truncates text, regenerates continuations, compares log-probs of original vs. re-generated. |
+| `revise_detect` | `ReviseDetector` | Revision-based detection. Uses a seq2seq model to revise text and computes BARTScore similarity — AI text changes less when revised. |
+
+**Layer / representation analysis methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `text_fluoroscopy` | `TextFluoroscopyDetector` | Layer-wise KL divergence analysis. Projects each transformer layer's hidden state to vocabulary space and measures KL divergence between intermediate and final layers. Human text shows higher max-KL. |
+| `coco` | `CoCoDetector` | Measures inter-sentence coherence via cosine similarity of hidden-state embeddings. Human text shows more varied coherence patterns than machine text. |
+
+**Supervised methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `radar` | `RADARDetector` | RoBERTa-large fine-tuned jointly with a paraphraser for robustness against paraphrase attacks. |
+| `imbd` | `ImBDDetector` | Imitate Before Detect. Fine-tunes GPT-Neo-2.7B with Style Preference Optimization (SPO) to learn machine writing preferences, then uses the analytic sampling discrepancy as the detection score. |
 
 ---
 
