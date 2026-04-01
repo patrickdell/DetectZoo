@@ -1,0 +1,16 @@
+numpy>=1.24
+torch>=2.0
+transformers>=4.30
+accelerate>=0.20
+torchvision>=0.15
+Pillow>=9.0
+open-clip-torch>=2.20
+torchaudio>=2.0
+librosa>=0.10
+soundfile>=0.12
+datasets>=4.3
+scikit-learn>=1.2
+matplotlib>=3.7
+tqdm>=4.60
+peft>=0.10
+openai>=1.0
