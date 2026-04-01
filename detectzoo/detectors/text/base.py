@@ -99,4 +99,6 @@ class BaseTextDetector(BaseDetector):
     @staticmethod
     def _normalise_input(input_data: Any) -> str:
         """Accept a file path or raw string and return text."""
+        if len(input_data) > 255:
+            return str(input_data)
         return load_text(input_data)
