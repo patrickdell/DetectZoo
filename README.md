@@ -60,6 +60,8 @@ from detectzoo import list_detectors
 
 print(list_detectors())            # all detectors
 print(list_detectors("text"))      # text-only
+print(list_detectors("image"))     # image-only
+print(list_detectors("audio"))     # audio-only
 ```
 
 ---
@@ -313,9 +315,8 @@ We welcome community contributions. You can contribute by:
 
 Planned improvements include:
 
-* More detectors for each modality (watermark-based detectors, Deepfake-in-the-Wild models, etc.)
-* Pre-trained weights for CNN and spectrogram detectors
-* Built-in download and caching for common benchmark datasets (TruthfulQA, HC3, ASVspoof, GenImage, etc.)
+* More detectors for each modality
+* Pre-trained weights for detectors
 * Training scripts and configuration files
 * Leaderboard generation
 * Visualization tools for detection scores and attention maps
