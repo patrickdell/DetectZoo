@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "detectzoo"
+version = "0.1.0"
+description = "A unified toolkit for detecting AI-generated content across text, images, and audio."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.9"
+keywords = ["ai-detection", "deepfake", "llm", "generative-ai", "machine-learning"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.24",
+    "torch>=2.0",
+    "tqdm>=4.60",
+]
+
+[project.optional-dependencies]
+text = [
+    "transformers>=4.30",
+    "accelerate>=0.20",
+    "datasets>=2.14",
+]
+image = [
+    "torchvision>=0.15",
+    "Pillow>=9.0",
+    "open-clip-torch>=2.20",
+]
+audio = [
+    "torchaudio>=2.0",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+]
+eval = [
+    "scikit-learn>=1.2",
+    "matplotlib>=3.7",
+]
+all = [
+    "detectzoo[text,image,audio,eval]",
+]
+dev = [
+    "detectzoo[all]",
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/sadjadeb/detectzoo"
+Repository = "https://github.com/sadjadeb/detectzoo"
+Issues = "https://github.com/sadjadeb/detectzoo/issues"
+
+[tool.setuptools.packages.find]
+include = ["detectzoo*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: marks tests that require model downloads (deselect with '-m \"not slow\"')",
+]
