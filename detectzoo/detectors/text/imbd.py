@@ -82,32 +82,51 @@ class ImBDDetector(BaseTextDetector):
 
     def __init__(
         self,
-        model_name: str = "xyzhu1225/ImBD-inference",
+        model_name: str = "xyzhu1225/ImBD",
         use_peft: bool = False,
         threshold: float = 0.0,
         device: str = "cpu",
         **kwargs: Any,
     ) -> None:
         super().__init__(model_name=model_name, threshold=threshold, device=device, **kwargs)
+        self.adapter_name = "xyzhu1225/ImBD-inference"
+        self.base_model_name = "EleutherAI/gpt-neo-2.7B"
         self.use_peft = use_peft
 
     def _load_model(self) -> None:
-        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
         logger.info("Loading ImBD model '%s' (peft=%s) …", self.model_name, self.use_peft)
 
         if self.use_peft:
-            from peft import AutoPeftModelForCausalLM
+            from peft import PeftModel
 
-            self._model = AutoPeftModelForCausalLM.from_pretrained(
-                self.model_name,
+            base_model = AutoModelForCausalLM.from_pretrained(self.base_model_name,
+                                                              device_map=self._device)
+
+            self._model = PeftModel.from_pretrained(
+                base_model,
+                self.adapter_name,
             ).to(self._device)
         else:
-            self._model = AutoModelForCausalLM.from_pretrained(
-                self.model_name,
-            ).to(self._device)
+            from huggingface_hub import hf_hub_download
 
-        self._tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+            weights_path = hf_hub_download(repo_id=self.model_name, filename="model.bin")
+
+            config = AutoConfig.from_pretrained(self.base_model_name)
+            model = AutoModelForCausalLM.from_config(config).to(torch.float16)
+
+            state_dict = torch.load(weights_path, map_location="cpu")
+            for key in state_dict.keys():
+                state_dict[key] = state_dict[key].to(torch.float16)
+
+            model.load_state_dict(state_dict, strict=False)
+            model.to(self._device)
+
+            self._model = model
+            print("Model loaded successfully")
+
+        self._tokenizer = AutoTokenizer.from_pretrained(self.adapter_name)
         if self._tokenizer.pad_token is None:
             self._tokenizer.pad_token = self._tokenizer.eos_token
 
