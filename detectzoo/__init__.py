@@ -1,5 +1,9 @@
 """DetectZoo: A unified toolkit for detecting AI-generated content."""
 
+from detectzoo.utils.hf_quiet import configure_hf_quiet
+
+configure_hf_quiet()
+
 import detectzoo.detectors.audio  # noqa: F401
 import detectzoo.detectors.image  # noqa: F401
 import detectzoo.detectors.text  # noqa: F401
