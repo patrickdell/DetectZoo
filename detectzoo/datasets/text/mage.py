@@ -14,8 +14,10 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 
+@register_dataset("mage")
 class MAGEDataset(BaseDataset):
     """MAGE dataset for machine-generated text detection in the wild.
 

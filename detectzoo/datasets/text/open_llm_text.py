@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 _ZENODO_BASE = "https://zenodo.org/records/8285326/files"
 
@@ -34,6 +35,7 @@ _SPLIT_FILES = {
 }
 
 
+@register_dataset("open_llm_text")
 class OpenLLMTextDataset(BaseDataset):
     """OpenLLMText dataset for multi-source LLM text detection.
 

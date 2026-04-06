@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 _GITHUB_RAW = "https://raw.githubusercontent.com/botianzhe/CHEAT/main/data"
 
@@ -26,6 +27,7 @@ _FILES: dict[str, tuple[str, int]] = {
 }
 
 
+@register_dataset("cheat")
 class CHEATDataset(BaseDataset):
     """CHEAT dataset for detecting ChatGPT-written academic abstracts.
 

@@ -20,8 +20,10 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 
+@register_dataset("xsum")
 class XSumDataset(BaseDataset):
     """XSum dataset for text detection benchmarking.
 

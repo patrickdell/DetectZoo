@@ -15,6 +15,7 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 _GITHUB_RAW = (
     "https://raw.githubusercontent.com/suu990901/"
@@ -30,6 +31,7 @@ _FILES = (
 )
 
 
+@register_dataset("hc3_plus")
 class HC3PlusDataset(BaseDataset):
     """HC3 Plus dataset for human vs. ChatGPT text detection (English).
 

@@ -19,8 +19,10 @@ from pathlib import Path
 from typing import Any, List, Optional
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.core.registry import register_dataset
 
 
+@register_dataset("writing_prompts")
 class WritingPromptsDataset(BaseDataset):
     """WritingPrompts dataset for text detection benchmarking.
 
