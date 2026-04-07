@@ -124,7 +124,6 @@ class ImBDDetector(BaseTextDetector):
             model.to(self._device)
 
             self._model = model
-            print("Model loaded successfully")
 
         self._tokenizer = AutoTokenizer.from_pretrained(self.adapter_name)
         if self._tokenizer.pad_token is None:
