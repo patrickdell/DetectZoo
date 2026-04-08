@@ -53,6 +53,43 @@ class XSumDataset(BaseDataset):
     name = "xsum"
     modality = "text"
 
+    info = (
+        "XSum (Extreme Summarization)\n"
+        "============================\n"
+        "BBC article summaries widely used as a human-text source corpus\n"
+        "in LLM-generated text detection research (e.g. DetectGPT,\n"
+        "Fast-DetectGPT, DNA-GPT).\n"
+        "\n"
+        "Paper  : Narayan et al., 'Don't Give Me the Details, Just the\n"
+        "         Summary! Topic-Aware CNNs for Extreme Summarization',\n"
+        "         EMNLP 2018.\n"
+        "arXiv  : 1808.08745\n"
+        "\n"
+        "Statistics\n"
+        "----------\n"
+        "  Total articles : ~227k\n"
+        "  train          : 204,045 articles\n"
+        "  validation     : 11,332 articles\n"
+        "  test           : 11,334 articles\n"
+        "\n"
+        "Fields\n"
+        "------\n"
+        "  summary  – one-sentence BBC summary (default text field)\n"
+        "  document – full BBC article text\n"
+        "\n"
+        "Labels: all items are label=0 (human-written).  This is a\n"
+        "source corpus — pair with LLM-generated summaries (label=1)\n"
+        "to build a detection benchmark.\n"
+        "\n"
+        "Benchmarking\n"
+        "------------\n"
+        "Common setup: load XSum summaries, generate LLM completions\n"
+        "from the same prompts, then evaluate detectors on the combined\n"
+        "human + AI data.\n"
+        "  XSumDataset(split='test', max_samples=500)\n"
+        "Use text_field='document' for full-article experiments.\n"
+    )
+
     def __init__(
         self,
         path: str | Path | None = None,

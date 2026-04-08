@@ -66,6 +66,41 @@ class OpenLLMTextDataset(BaseDataset):
     name = "open_llm_text"
     modality = "text"
 
+    info = (
+        "OpenLLMText (Multi-LLM Text Detection Dataset)\n"
+        "===============================================\n"
+        "Contains ~340,000 text samples from human writers and four LLMs,\n"
+        "enabling both binary detection and source attribution experiments.\n"
+        "\n"
+        "Paper  : Chen et al., 'Token Prediction as Implicit Classification\n"
+        "         to Identify LLM-Generated Text', EMNLP 2023.\n"
+        "arXiv  : 2311.08723\n"
+        "\n"
+        "Sources (labels)\n"
+        "----------------\n"
+        "  human   – OpenWebText (label=0)\n"
+        "  gpt2    – GPT-2 XL generated text (label=1)\n"
+        "  chatgpt – GPT-3.5-Turbo / ChatGPT generated text (label=1)\n"
+        "  llama   – LLaMA-generated text (label=1)\n"
+        "  palm    – PaLM-generated text (label=1)\n"
+        "\n"
+        "Splits\n"
+        "------\n"
+        "Each source has three files:\n"
+        "  train – train-dirty.jsonl\n"
+        "  test  – test-dirty.jsonl\n"
+        "  valid – valid-dirty.jsonl\n"
+        "\n"
+        "Labels: 0 = human (OpenWebText), 1 = machine (any LLM).\n"
+        "\n"
+        "Benchmarking\n"
+        "------------\n"
+        "Filter by source to test per-model detection performance:\n"
+        "  OpenLLMTextDataset(sources=['chatgpt', 'human'], splits=['test'])\n"
+        "Use all sources to evaluate multi-LLM generalisation.  The dataset\n"
+        "also supports source-attribution tasks via metadata['source'].\n"
+    )
+
     def __init__(
         self,
         path: str | Path | None = None,

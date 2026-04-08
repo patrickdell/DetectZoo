@@ -56,6 +56,37 @@ class CHEATDataset(BaseDataset):
     name = "cheat"
     modality = "text"
 
+    info = (
+        "CHEAT (Detecting CHatGPT-writtEn AbsTracts)\n"
+        "============================================\n"
+        "A large-scale dataset of 35,304 ChatGPT-written academic abstracts\n"
+        "collected from IEEE papers, along with their original human-written\n"
+        "counterparts.\n"
+        "\n"
+        "Paper  : Yu et al., 'CHEAT: A Large-scale Dataset for Detecting\n"
+        "         CHatGPT-writtEn AbsTracts', IEEE Trans. Big Data, 2025.\n"
+        "arXiv  : 2304.12008\n"
+        "\n"
+        "Categories\n"
+        "----------\n"
+        "  human      – original human-written IEEE abstracts (ieee-init.jsonl)\n"
+        "  generation – first-pass ChatGPT output (ieee-chatgpt-generation.jsonl)\n"
+        "  polish     – ChatGPT-refined human abstracts (ieee-chatgpt-polish.jsonl)\n"
+        "  fusion     – human/ChatGPT hybrid abstracts (ieee-chatgpt-fusion.jsonl)\n"
+        "\n"
+        "Splits: no predefined train/test split; use categories for filtering.\n"
+        "\n"
+        "Labels: 0 = human (ieee-init), 1 = ChatGPT (generation/polish/fusion).\n"
+        "\n"
+        "Benchmarking\n"
+        "------------\n"
+        "Detection difficulty increases with human involvement: pure\n"
+        "generation is easiest, fusion is hardest.  Filter by category\n"
+        "to measure difficulty gradients:\n"
+        "  CHEATDataset(categories=['generation'])  # easiest\n"
+        "  CHEATDataset(categories=['fusion'])       # hardest\n"
+    )
+
     CATEGORIES = ("generation", "polish", "fusion")
 
     def __init__(

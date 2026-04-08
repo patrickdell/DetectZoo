@@ -40,6 +40,39 @@ class HC3Dataset(BaseDataset):
     name = "hc3"
     modality = "text"
 
+    info = (
+        "HC3 (Human ChatGPT Comparison Corpus)\n"
+        "======================================\n"
+        "The first large-scale human–ChatGPT comparison corpus, containing\n"
+        "~48k paired question-answer entries where each question has both a\n"
+        "human-expert answer and a ChatGPT answer.\n"
+        "\n"
+        "Paper  : Guo et al., 'How Close is ChatGPT to Human Experts?\n"
+        "         Comparison Corpus, Evaluation, and Detection', 2023.\n"
+        "arXiv  : 2301.07597\n"
+        "License: CC-BY-SA 4.0 (varies by source domain)\n"
+        "\n"
+        "Subsets (domains)\n"
+        "-----------------\n"
+        "  all        – combined file with all domains\n"
+        "  reddit_eli5 – open-domain QA from ELI5 (Reddit)\n"
+        "  open_qa    – open-domain QA from WikiQA\n"
+        "  wiki_csai  – CS & AI from Wikipedia\n"
+        "  finance    – financial QA from FiQA\n"
+        "  medicine   – medical QA from Medical Dialog\n"
+        "\n"
+        "Splits: single 'train' split on HuggingFace (~48,644 rows total).\n"
+        "\n"
+        "Labels: 0 = human-expert answer, 1 = ChatGPT answer.\n"
+        "\n"
+        "Benchmarking\n"
+        "------------\n"
+        "Load with HC3Dataset(subsets=['finance']) to restrict to a domain.\n"
+        "Each row produces multiple DatasetItems (one per answer). Pair\n"
+        "human (label=0) and ChatGPT (label=1) items for binary detection\n"
+        "evaluation.\n"
+    )
+
     SUBSETS = ("all", "finance", "medicine", "open_qa", "reddit_eli5", "wiki_csai")
 
     def __init__(

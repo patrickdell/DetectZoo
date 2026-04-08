@@ -63,6 +63,36 @@ class HC3PlusDataset(BaseDataset):
     name = "hc3_plus"
     modality = "text"
 
+    info = (
+        "HC3 Plus (Semantic-Invariant Human ChatGPT Comparison Corpus)\n"
+        "=============================================================\n"
+        "Extends the original HC3 corpus with semantic-invariant tasks\n"
+        "(summarisation, translation, paraphrasing) where detecting\n"
+        "ChatGPT-generated text is harder than in plain QA.\n"
+        "\n"
+        "Paper  : Su et al., 'HC3 Plus: A Semantic-Invariant Human ChatGPT\n"
+        "         Comparison Corpus', 2023.\n"
+        "arXiv  : 2309.02731\n"
+        "\n"
+        "Splits\n"
+        "------\n"
+        "  train    – training set\n"
+        "  val_qa   – QA-style validation set (val_hc3_QA.jsonl)\n"
+        "  val_si   – semantic-invariant validation set (val_hc3_si.jsonl)\n"
+        "  test_qa  – QA-style test set (test_hc3_QA.jsonl)\n"
+        "  test_si  – semantic-invariant test set (test_hc3_si.jsonl)\n"
+        "\n"
+        "Labels: 0 = human, 1 = ChatGPT.\n"
+        "\n"
+        "Benchmarking\n"
+        "------------\n"
+        "The semantic-invariant splits (val_si, test_si) are specifically\n"
+        "designed for harder evaluation.  Compare detector performance\n"
+        "across QA vs. SI splits to measure robustness on paraphrased or\n"
+        "summarised text.  Load specific splits:\n"
+        "  HC3PlusDataset(splits=['test_si'])\n"
+    )
+
     _SPLIT_MAP: dict[str, str] = {
         "train": "train.jsonl",
         "val_qa": "val_hc3_QA.jsonl",
