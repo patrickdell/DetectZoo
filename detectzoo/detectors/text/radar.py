@@ -33,10 +33,8 @@ class RADARDetector(BaseTextDetector):
     """RADAR adversarially-robust text detector.
 
     Parameters:
-        model_name: HuggingFace checkpoint.  Use one of the
-            pre-trained RADAR models for best results, e.g.
-            ``"TrustSafeAI/RADAR-Vicuna-7B"``.  Default uses
-            ``"roberta-base"`` (untrained — for API testing only).
+        model_name: HuggingFace checkpoint (default
+            ``"TrustSafeAI/RADAR-Vicuna-7B"``).
         threshold: Decision boundary on the AI probability.
         max_length: Max token length.
         device: ``"cpu"`` or ``"cuda"``.
@@ -46,7 +44,7 @@ class RADARDetector(BaseTextDetector):
 
     def __init__(
         self,
-        model_name: str = "roberta-base",
+        model_name: str = "TrustSafeAI/RADAR-Vicuna-7B",
         threshold: float = 0.5,
         max_length: int = 512,
         device: str = "cpu",
