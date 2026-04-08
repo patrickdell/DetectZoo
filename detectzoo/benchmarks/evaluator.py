@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Sequence
+import json
+from pathlib import Path
+from typing import Any, Dict, List, Sequence, Union
 
 from tqdm import tqdm
 
@@ -32,8 +34,17 @@ class BenchmarkEvaluator:
         self,
         detector: BaseDetector,
         items: Sequence[DatasetItem] | None = None,
+        *,
+        save_scores: bool = False,
     ) -> Dict[str, Any]:
-        """Run *detector* on all items and return a metrics dictionary."""
+        """Run *detector* on all items and return a metrics dictionary.
+
+        Parameters
+        ----------
+        save_scores:
+            If ``True``, the returned dict includes a ``"samples"`` key with
+            per-sample labels and scores.
+        """
         if items is None:
             items = self.dataset.load()
 
@@ -50,18 +61,27 @@ class BenchmarkEvaluator:
         metrics = compute_metrics(labels, scores, threshold=detector.threshold)
         metrics["detector"] = detector.name
         metrics["n_samples"] = len(labels)
+
+        if save_scores:
+            metrics["samples"] = [
+                {"label": lbl, "score": scr}
+                for lbl, scr in zip(labels, scores)
+            ]
+
         return metrics
 
     def run(
         self,
         detectors: Sequence[BaseDetector],
+        *,
+        save_scores: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
         """Evaluate multiple detectors and return ``{name: metrics}``."""
         items = self.dataset.load()
         results: Dict[str, Dict[str, Any]] = {}
         for det in detectors:
             logger.info("Evaluating '%s' …", det.name)
-            results[det.name] = self.evaluate_single(det, items=items)
+            results[det.name] = self.evaluate_single(det, items=items, save_scores=save_scores)
         return results
 
     def run_and_print(self, detectors: Sequence[BaseDetector]) -> None:
@@ -75,3 +95,36 @@ class BenchmarkEvaluator:
             row = " | ".join(f"{metrics.get(k, ''):>18}" if isinstance(metrics.get(k), str)
                              else f"{metrics.get(k, 0):>18.4f}" for k in header_keys)
             print(row)
+
+    def run_and_save(
+        self,
+        detectors: Sequence[BaseDetector],
+        output_path: Union[str, Path],
+        *,
+        save_scores: bool = False,
+    ) -> Dict[str, Dict[str, Any]]:
+        """Evaluate detectors and save the results to a JSON file.
+
+        Parameters
+        ----------
+        detectors:
+            Detectors to benchmark.
+        output_path:
+            Destination file path.  Parent directories are created
+            automatically if they don't exist.
+        save_scores:
+            If ``True``, per-sample labels and scores are included in the
+            saved output under each detector's ``"samples"`` key.
+
+        Returns
+        -------
+        The same ``{name: metrics}`` dictionary that :meth:`run` returns.
+        """
+        all_results = self.run(detectors, save_scores=save_scores)
+
+        output_path = Path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(all_results, indent=2, default=str))
+
+        logger.info("Results saved to %s", output_path)
+        return all_results
