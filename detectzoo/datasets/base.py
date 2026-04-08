@@ -26,16 +26,37 @@ class DatasetItem:
 class BaseDataset(ABC):
     """Abstract base for detection datasets.
 
-    Subclass and implement :meth:`load` to produce a list of
-    :class:`DatasetItem` instances.
+    Subclass and implement :meth:`_load_all` to produce a list of
+    :class:`DatasetItem` instances.  The public :meth:`load` method
+    handles caching and ``max_samples`` truncation automatically.
+
+    Parameters
+    ----------
+    max_samples : int, optional
+        Cap the number of samples returned by :meth:`load`.
+        Useful for debugging and quick experiments.
     """
 
     name: str = ""
     modality: str = ""
 
+    def __init__(self, *, max_samples: int | None = None) -> None:
+        self.max_samples = max_samples
+        self._items: Optional[List[DatasetItem]] = None
+
     @abstractmethod
+    def _load_all(self) -> List[DatasetItem]:
+        """Load all samples (before ``max_samples`` truncation)."""
+
     def load(self) -> List[DatasetItem]:
-        """Load and return all samples."""
+        """Load samples, applying ``max_samples`` truncation if set."""
+        if self._items is not None:
+            return self._items
+        items = self._load_all()
+        if self.max_samples is not None:
+            items = items[: self.max_samples]
+        self._items = items
+        return self._items
 
     def __iter__(self) -> Iterator[DatasetItem]:
         return iter(self.load())
@@ -90,11 +111,12 @@ class SimpleDirectoryDataset(BaseDataset):
         real_dir: Path,
         fake_dir: Path,
         extensions: Sequence[str] | None = None,
+        **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.real_dir = real_dir
         self.fake_dir = fake_dir
         self.extensions = extensions
-        self._items: Optional[List[DatasetItem]] = None
 
     def _list_files(self, directory: Path) -> List[Path]:
         files = sorted(directory.iterdir())
@@ -103,17 +125,12 @@ class SimpleDirectoryDataset(BaseDataset):
             files = [f for f in files if f.suffix.lower().lstrip(".") in exts]
         return [f for f in files if f.is_file()]
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
-
+    def _load_all(self) -> List[DatasetItem]:
         items: List[DatasetItem] = []
         for path in self._list_files(self.real_dir):
             items.append(DatasetItem(data=str(path), label=0, metadata={"source": "real"}))
         for path in self._list_files(self.fake_dir):
             items.append(DatasetItem(data=str(path), label=1, metadata={"source": "fake"}))
-
-        self._items = items
         return items
 
 
@@ -128,16 +145,14 @@ class CSVDataset(BaseDataset):
         csv_path: Path,
         text_column: str = "text",
         label_column: str = "label",
+        **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.csv_path = csv_path
         self.text_column = text_column
         self.label_column = label_column
-        self._items: Optional[List[DatasetItem]] = None
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
-
+    def _load_all(self) -> List[DatasetItem]:
         import csv
 
         items: List[DatasetItem] = []
@@ -150,5 +165,4 @@ class CSVDataset(BaseDataset):
                         label=int(row[self.label_column]),
                     )
                 )
-        self._items = items
         return items
