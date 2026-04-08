@@ -15,6 +15,7 @@ from detectzoo.detectors.text.npr import NPRDetector
 from detectzoo.detectors.text.radar import RADARDetector
 from detectzoo.detectors.text.rank import RankDetector
 from detectzoo.detectors.text.revise_detect import ReviseDetector
+from detectzoo.detectors.text.roberta import RobertaBaseDetector, RobertaLargeDetector
 
 __all__ = [
     "BinocularsDetector",
@@ -33,4 +34,6 @@ __all__ = [
     "RADARDetector",
     "RankDetector",
     "ReviseDetector",
+    "RobertaBaseDetector",
+    "RobertaLargeDetector",
 ]

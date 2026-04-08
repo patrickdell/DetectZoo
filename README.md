@@ -113,6 +113,8 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 
 | Name | Class | Method |
 |------|-------|--------|
+| `roberta_base` | `RobertaBaseDetector` | Pre-trained [RoBERTa Base OpenAI Detector](https://huggingface.co/openai-community/roberta-base-openai-detector). Classifies text as Real/Fake using a RoBERTa-base model fine-tuned on GPT-2 outputs. Also available as `"roberta_openai_base"`. |
+| `roberta_large` | `RobertaLargeDetector` | Pre-trained [RoBERTa Large OpenAI Detector](https://huggingface.co/openai-community/roberta-large-openai-detector). Same approach as base but with a larger backbone. Also available as `"roberta_openai_large"`. |
 | `radar` | `RADARDetector` | RoBERTa-large fine-tuned jointly with a paraphraser for robustness against paraphrase attacks. |
 | `imbd` | `ImBDDetector` | Imitate Before Detect. Fine-tunes GPT-Neo-2.7B with Style Preference Optimization (SPO) to learn machine writing preferences, then uses the analytic sampling discrepancy as the detection score. |
 
