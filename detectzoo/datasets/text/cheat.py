@@ -65,10 +65,10 @@ class CHEATDataset(BaseDataset):
         cache_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.path = Path(path) if path is not None else None
         self.categories = set(categories) if categories else None
         self.cache_dir = cache_dir
-        self._items: Optional[List[DatasetItem]] = None
 
     def _ensure_downloaded(self) -> Path:
         from detectzoo.datasets._download import download_file, get_cache_dir
@@ -95,16 +95,11 @@ class CHEATDataset(BaseDataset):
                 ))
         return items
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
-
+    def _load_all(self) -> List[DatasetItem]:
         data_dir = self.path if self.path is not None else self._ensure_downloaded()
         items: List[DatasetItem] = []
         for filename, (category, label) in _FILES.items():
             fp = data_dir / filename
             if fp.exists():
                 items.extend(self._load_jsonl(fp, category, label))
-
-        self._items = items
-        return self._items
+        return items

@@ -78,10 +78,10 @@ class HC3PlusDataset(BaseDataset):
         cache_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.path = Path(path) if path is not None else None
         self.splits = list(splits) if splits else None
         self.cache_dir = cache_dir
-        self._items: Optional[List[DatasetItem]] = None
 
     def _ensure_downloaded(self) -> Path:
         from detectzoo.datasets._download import download_file, get_cache_dir
@@ -113,15 +113,10 @@ class HC3PlusDataset(BaseDataset):
                 ))
         return items
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
-
+    def _load_all(self) -> List[DatasetItem]:
         data_dir = self.path if self.path is not None else self._ensure_downloaded()
         items: List[DatasetItem] = []
         for fp, split_name in self._files_to_load(data_dir):
             if fp.exists():
                 items.extend(self._load_jsonl(fp, split_name))
-
-        self._items = items
-        return self._items
+        return items

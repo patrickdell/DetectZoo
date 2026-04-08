@@ -59,10 +59,9 @@ class WritingPromptsDataset(BaseDataset):
         max_samples: int | None = None,
         **kwargs: Any,
     ) -> None:
+        super().__init__(max_samples=max_samples, **kwargs)
         self.path = Path(path) if path is not None else None
         self.split = split
-        self.max_samples = max_samples
-        self._items: Optional[List[DatasetItem]] = None
 
     def _load_from_huggingface(self) -> List[DatasetItem]:
         from datasets import load_dataset
@@ -104,11 +103,7 @@ class WritingPromptsDataset(BaseDataset):
                         return items
         return items
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
+    def _load_all(self) -> List[DatasetItem]:
         if self.path is not None:
-            self._items = self._load_from_local()
-        else:
-            self._items = self._load_from_huggingface()
-        return self._items
+            return self._load_from_local()
+        return self._load_from_huggingface()

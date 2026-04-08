@@ -52,12 +52,12 @@ class MAGEDataset(BaseDataset):
         label_column: str = "label",
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.path = Path(path) if path is not None else None
         self.sources = {s.lower() for s in sources} if sources else None
         self.split = split
         self.text_column = text_column
         self.label_column = label_column
-        self._items: Optional[List[DatasetItem]] = None
 
     @staticmethod
     def _flip_label(raw_label: int) -> int:
@@ -115,11 +115,7 @@ class MAGEDataset(BaseDataset):
                     ))
         return items
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
+    def _load_all(self) -> List[DatasetItem]:
         if self.path is not None:
-            self._items = self._load_from_local()
-        else:
-            self._items = self._load_from_huggingface()
-        return self._items
+            return self._load_from_local()
+        return self._load_from_huggingface()

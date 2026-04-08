@@ -74,11 +74,11 @@ class OpenLLMTextDataset(BaseDataset):
         cache_dir: str | Path | None = None,
         **kwargs: Any,
     ) -> None:
+        super().__init__(**kwargs)
         self.path = Path(path) if path is not None else None
         self.sources = {s.lower() for s in sources} if sources else None
         self.splits = set(splits) if splits else None
         self.cache_dir = cache_dir
-        self._items: Optional[List[DatasetItem]] = None
 
     def _ensure_downloaded(self) -> Path:
         from detectzoo.datasets._download import download_and_extract_zip, get_cache_dir
@@ -121,10 +121,7 @@ class OpenLLMTextDataset(BaseDataset):
                 ))
         return items
 
-    def load(self) -> List[DatasetItem]:
-        if self._items is not None:
-            return self._items
-
+    def _load_all(self) -> List[DatasetItem]:
         data_dir = self.path if self.path is not None else self._ensure_downloaded()
         items: List[DatasetItem] = []
         for source_key, source_dir, label in self._iter_source_dirs(data_dir):
@@ -134,6 +131,4 @@ class OpenLLMTextDataset(BaseDataset):
                 fp = source_dir / filename
                 if fp.exists():
                     items.extend(self._load_jsonl(fp, source_key, label, split_name))
-
-        self._items = items
-        return self._items
+        return items
