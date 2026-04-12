@@ -4,6 +4,7 @@ from detectzoo.utils.hf_quiet import configure_hf_quiet
 
 configure_hf_quiet()
 
+import detectzoo.datasets.image  # noqa: F401
 import detectzoo.datasets.text  # noqa: F401
 import detectzoo.detectors.audio  # noqa: F401
 import detectzoo.detectors.image  # noqa: F401

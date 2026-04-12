@@ -4,6 +4,9 @@ __pycache__/
 *$py.class
 *.so
 
+# Accidental pip-style file at repo root
+/=1.0.17
+
 # Distribution / packaging
 dist/
 build/
@@ -14,6 +17,16 @@ build/
 .venv/
 venv/
 env/
+bin/
+lib
+lib64
+pyvenv.cfg
+
+# Shell scripts
+*.sh
+
+# Job / process log output (e.g. SLURM *.out, *.err.out)
+*.out
 
 # IDE
 .idea/
@@ -34,6 +47,9 @@ htmlcov/
 # OS
 .DS_Store
 Thumbs.db
+# NFS placeholders (ignore in any subdirectory; .nfs* alone matches too)
+**/.nfs*
+.nfs*
 
 # Model weights and data (large files)
 *.pt
@@ -44,3 +60,7 @@ Thumbs.db
 .detectzoo_data/
 .checkpoints/
 .weights/
+data/
+
+# Temporarily excluded dataset modules
+# (none)

@@ -1,6 +1,12 @@
 """Dataset abstractions for AI-content detection benchmarks."""
 
 from detectzoo.datasets.base import BaseDataset, DatasetItem
+from detectzoo.datasets.image import (
+    AIGCDetectDataset,
+    CNNDetectionDataset,
+    DRCT2MDataset,
+    SelfSynthesisDataset,
+)
 from detectzoo.datasets.text import (
     CHEATDataset,
     HC3Dataset,
@@ -14,6 +20,10 @@ from detectzoo.datasets.text import (
 __all__ = [
     "BaseDataset",
     "DatasetItem",
+    "AIGCDetectDataset",
+    "CNNDetectionDataset",
+    "DRCT2MDataset",
+    "SelfSynthesisDataset",
     "CHEATDataset",
     "HC3Dataset",
     "HC3PlusDataset",

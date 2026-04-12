@@ -38,6 +38,10 @@ image = [
     "torchvision>=0.15",
     "Pillow>=9.0",
     "open-clip-torch>=2.20",
+    "diffusers>=0.21",
+    "lpips>=0.1",
+    "accelerate>=0.20",
+    "huggingface_hub>=0.16",
 ]
 audio = [
     "torchaudio>=2.0",
@@ -47,6 +51,10 @@ audio = [
 eval = [
     "scikit-learn>=1.2",
     "matplotlib>=3.7",
+]
+datasets = [
+    "modelscope>=1.9",
+    "gdown>=4.0",
 ]
 all = [
     "detectzoo[text,image,audio,eval]",

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tarfile
 import tempfile
 import zipfile
 from pathlib import Path
@@ -67,7 +68,12 @@ def download_and_extract_zip(
         return dest_dir
     dest_dir.mkdir(parents=True, exist_ok=True)
     logger.info("Downloading %s", url)
-    with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tmp:
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".zip",
+        delete=False,
+        dir=dest_dir,
+    ) as tmp:
         tmp_path = Path(tmp.name)
     try:
         urlretrieve(url, tmp_path, reporthook=_progress_hook)
@@ -75,6 +81,48 @@ def download_and_extract_zip(
         logger.info("Extracting to %s", dest_dir)
         with zipfile.ZipFile(tmp_path) as zf:
             zf.extractall(dest_dir)
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    marker.touch()
+    return dest_dir
+
+
+def extract_tar_archive(archive: Path, dest_dir: Path) -> None:
+    """Extract a tar archive (``.tar``, ``.tar.gz``, ``.tgz``, ``.tar.bz2``, …) into *dest_dir*."""
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(archive, "r:*") as tf:
+        tf.extractall(dest_dir)
+
+
+def download_and_extract_tar(
+    url: str,
+    dest_dir: Path,
+    *,
+    force: bool = False,
+) -> Path:
+    """Download a tar archive (optionally gzip/bzip2/xz-compressed), extract it, and cache the result.
+
+    A ``.download_complete`` marker file prevents re-downloading on 
+    subsequent calls.
+    """
+    marker = dest_dir / ".download_complete"
+    if marker.exists() and not force:
+        logger.info("Using cached %s", dest_dir)
+        return dest_dir
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    logger.info("Downloading %s", url)
+
+    with tempfile.NamedTemporaryFile(
+        suffix=".tar",
+        delete=False,
+        dir=dest_dir,
+    ) as tmp:
+        tmp_path = Path(tmp.name)
+    try:
+        urlretrieve(url, tmp_path, reporthook=_progress_hook)
+        print()  # newline after progress bar
+        logger.info("Extracting to %s", dest_dir)
+        extract_tar_archive(tmp_path, dest_dir)
     finally:
         tmp_path.unlink(missing_ok=True)
     marker.touch()
