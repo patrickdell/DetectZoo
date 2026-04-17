@@ -307,4 +307,3 @@ class RawNet2Detector(BaseDetector):
             logit_bonafide=float(logits[0, 0]),
             logit_spoof=float(logits[0, 1]),
         )
-        
