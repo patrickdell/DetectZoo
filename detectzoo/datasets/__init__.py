@@ -1,6 +1,6 @@
 """Dataset abstractions for AI-content detection benchmarks."""
 
-from detectzoo.datasets.audio import ASVspoof2019Dataset, FoRDataset
+from detectzoo.datasets.audio import ASVspoof2019Dataset, FoRDataset, WaveFakeDataset
 from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.datasets.image import (
     AIGCDetectDataset,
@@ -23,6 +23,7 @@ __all__ = [
     "DatasetItem",
     "ASVspoof2019Dataset",
     "FoRDataset",
+    "WaveFakeDataset",
     "AIGCDetectDataset",
     "CNNDetectionDataset",
     "DRCT2MDataset",
