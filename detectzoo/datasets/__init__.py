@@ -7,6 +7,7 @@ from detectzoo.datasets.image import (
     CNNDetectionDataset,
     DRCT2MDataset,
     SelfSynthesisDataset,
+    UnivFDDataset,
 )
 from detectzoo.datasets.text import (
     CHEATDataset,
@@ -28,6 +29,7 @@ __all__ = [
     "CNNDetectionDataset",
     "DRCT2MDataset",
     "SelfSynthesisDataset",
+    "UnivFDDataset",
     "CHEATDataset",
     "HC3Dataset",
     "HC3PlusDataset",
@@ -36,3 +38,4 @@ __all__ = [
     "WritingPromptsDataset",
     "XSumDataset",
 ]
+
