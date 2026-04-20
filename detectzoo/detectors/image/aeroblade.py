@@ -1,15 +1,15 @@
-"""AEROBLADE — training-free detection via VAE reconstruction error (LPIPS).
+"""AEROBLADE — Training-Free Diffusion Image Detection (CVPR 2024).
 
 Reference:
     Ricker et al., "AEROBLADE: Training-Free Detection of Latent Diffusion Images
     Using Autoencoder Reconstruction Error", CVPR 2024.
 
 The key idea: latent diffusion models synthesize images in the same VAE latent space
-they were trained on, so an image that truly came from that pipeline tends to
-round-trip through encode → sample → decode with *lower* perceptual error (LPIPS
-to the input) than a typical real photograph. The detector scores images by that
-reconstruction gap, we negate LPIPS so higher scores mean more likely AI-generated.
+they were trained on, so a round-trip through encode → decode yields lower perceptual
+error (LPIPS) for AI-generated images than for real photographs. The detector scores
+images by that reconstruction gap (negated LPIPS: higher = more likely AI).
 
+Upstream: https://github.com/jonasricker/aeroblade
 """
 
 from __future__ import annotations
@@ -29,9 +29,8 @@ from detectzoo.core.registry import register_detector
 from detectzoo.utils.io import load_image
 
 
-def _resize_to_multiple_of_8(image: Any) -> Any:
-    if not isinstance(image, Image.Image):
-        raise TypeError("Expected a PIL Image.")
+def _resize_to_multiple_of_8(image: Image.Image) -> Image.Image:
+    """Resize so both dimensions are multiples of 8 (VAE requirement)."""
     w, h = image.size
     w2, h2 = w - (w % 8), h - (h % 8)
     if w2 < 8 or h2 < 8:
@@ -41,26 +40,34 @@ def _resize_to_multiple_of_8(image: Any) -> Any:
     return image
 
 
-def _pil_to_tensor01(image: Any) -> torch.Tensor:
+def _pil_to_tensor01(image: Image.Image) -> torch.Tensor:
+    """Convert PIL Image to [1, 3, H, W] tensor in [0, 1]."""
     t = T.ToTensor()(image)
     return t.unsqueeze(0)
 
 
 @register_detector("aeroblade", aliases=["aeroblade_vae"])
 class AerobladeDetector(BaseDetector):
-    """AEROBLADE image detector using SD VAE encode–decode and LPIPS distance.
+    """AEROBLADE image detector (Ricker et al., CVPR 2024).
 
-
-    Parameters:
-        repo_ids: Hugging Face model ids that expose a ``subfolder="vae"``
-            ``AutoencoderKL`` (e.g. Stable Diffusion checkpoints).
-        lpips_vgg_index: Which LPIPS term to use, matching the reference CLI:
-            ``0`` = full LPIPS sum; ``1``–``5`` = VGG stage (default ``2`` =
-            ``lpips_vgg_2`` in the official code).
-        threshold: Decision threshold on the detection score (``-LPIPS`` after
-            aggregation). Tune on validation data; the default is a placeholder.
-        use_fp16: Run the VAE in float16 on CUDA.
-        seed: seed for latent sampling.
+    Parameters
+    ----------
+    repo_ids : sequence of str, optional
+        Hugging Face model ids that expose a ``subfolder="vae"``
+        ``AutoencoderKL`` (e.g. Stable Diffusion checkpoints). Defaults to
+        ``["CompVis/stable-diffusion-v1-1"]``.
+    lpips_vgg_index : int
+        Which LPIPS term to use. ``0`` = full LPIPS sum; ``1``–``5`` = VGG
+        stage (default ``2`` = ``lpips_vgg_2`` in the official code).
+    threshold : float
+        Decision boundary on the score (``-LPIPS``). Tune on validation
+        data; the default is a placeholder.
+    device : str
+        Torch device string (``"cpu"``, ``"cuda"``, ``"cuda:0"``, …).
+    use_fp16 : bool
+        Run the VAE in float16 on CUDA.
+    seed : int, optional
+        Seed for latent sampling reproducibility.
     """
 
     modality = "image"
@@ -88,6 +95,9 @@ class AerobladeDetector(BaseDetector):
         self._vaes = nn.ModuleDict()
         self._lpips: Optional[nn.Module] = None
 
+    # ------------------------------------------------------------------
+    # Internal helpers
+    # ------------------------------------------------------------------
 
     def _dtype(self) -> torch.dtype:
         return torch.float16 if self.use_fp16 else torch.float32
@@ -96,6 +106,7 @@ class AerobladeDetector(BaseDetector):
         return repo_id.replace("/", "--")
 
     def _get_vae(self, repo_id: str) -> nn.Module:
+        """Lazily load and cache a VAE by repo id."""
         key = self._vae_key(repo_id)
         if key in self._vaes:
             return self._vaes[key]
@@ -111,6 +122,7 @@ class AerobladeDetector(BaseDetector):
         return vae
 
     def _get_lpips(self) -> nn.Module:
+        """Lazily load and cache the LPIPS network."""
         if self._lpips is not None:
             return self._lpips
 
@@ -127,10 +139,9 @@ class AerobladeDetector(BaseDetector):
             self._lpips.to(self._device)
         return self
 
-
     @torch.no_grad()
     def _lpips_distance(self, orig_01: torch.Tensor, recon_01: torch.Tensor) -> float:
-        """Mean LPIPS between two [0,1] BCHW tensors (single batch element)."""
+        """Mean LPIPS between two [0,1] BCHW tensors."""
         lp = self._get_lpips()
         total, per_layer = lp(orig_01, recon_01, retPerLayer=True, normalize=True)
         if self.lpips_vgg_index == 0:
@@ -152,6 +163,7 @@ class AerobladeDetector(BaseDetector):
         return (decoded / 2 + 0.5).clamp(0, 1)
 
     def _distance_one_repo(self, repo_id: str, x01: torch.Tensor) -> float:
+        """Compute LPIPS reconstruction distance for a single VAE."""
         vae = self._get_vae(repo_id)
         x_m11 = x01 * 2.0 - 1.0
         x_m11 = x_m11.to(device=self._device, dtype=self._dtype())
@@ -159,12 +171,24 @@ class AerobladeDetector(BaseDetector):
         x01_f = x01.to(device=self._device, dtype=torch.float32)
         return self._lpips_distance(x01_f, recon)
 
-    def _normalize_input(self, input_data: Any) -> Any:
+    # ------------------------------------------------------------------
+    # Input handling
+    # ------------------------------------------------------------------
+
+    def _normalize_input(self, input_data: Any) -> Image.Image:
         if hasattr(input_data, "mode") and hasattr(input_data, "convert"):
             return input_data.convert("RGB")
         path = Path(str(input_data))
         if path.is_file():
             return load_image(path)
+        raise TypeError(
+            "Expected a PIL Image or a path to an image file; got "
+            f"{type(input_data).__name__}."
+        )
+
+    # ------------------------------------------------------------------
+    # Inference
+    # ------------------------------------------------------------------
 
     def predict(self, input_data: Any) -> DetectionResult:
         img = self._normalize_input(input_data)
