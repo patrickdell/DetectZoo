@@ -92,15 +92,23 @@ def _compute_mde(
     Returns:
         MDE values of shape ``[S]``.
     """
+    n_samples = log_likelihood.shape[2]
     de_list = []
     for tau in range(1, tau_prime + 1):
         seq = log_likelihood.squeeze(0)  # [T, S]
         if tau > 1:
+            if seq.shape[0] < tau:
+                break
             windows = seq.unfold(0, tau, 1)  # [T - tau + 1, S, tau]
             seq = windows.mean(dim=-1)  # [T - tau + 1, S]
+        # _compute_de needs at least embed_size + 2 time steps
+        if seq.shape[0] < embed_size + 2:
+            break
         de = _compute_de(seq.unsqueeze(0), embed_size, n_bins)
         de_list.append(de)
-    de_stack = torch.stack(de_list, dim=0)  # [tau_prime, S]
+    if len(de_list) < 2:
+        return torch.zeros(n_samples, device=log_likelihood.device)
+    de_stack = torch.stack(de_list, dim=0)  # [<=tau_prime, S]
     return de_stack.std(dim=0)  # [S]
 
 
