@@ -29,7 +29,7 @@ from detectzoo.detectors.text.base import BaseTextDetector
 class LRRDetector(BaseTextDetector):
     """Log-Likelihood Ratio detector.
 
-    Score = −LL / LogRank.  Higher score → more likely AI.
+    Score = LL / LogRank.  Higher score (closer to 0) → more likely AI.
 
     Parameters:
         model_name: HuggingFace causal LM (default ``"gpt2"``).
@@ -64,6 +64,6 @@ class LRRDetector(BaseTextDetector):
         if abs(log_rank) < 1e-8:
             score = 0.0
         else:
-            score = -ll / log_rank
+            score = ll / log_rank
 
         return self._make_result(score, log_likelihood=ll, log_rank=log_rank)
