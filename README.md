@@ -84,6 +84,11 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 | `entropy` | `EntropyDetector` | Average predictive entropy. Machine text tends to have lower entropy. |
 | `lrr` | `LRRDetector` | Log-Likelihood Ratio: −LL / LogRank. Combines two signals into one score. |
 | `lastde` | `LastdeDetector` | Multiscale Distribution Entropy of token log-probability sequences. Training-free; measures regularity of the probability landscape via orbit cosine-similarity histograms. |
+| `gecscore` | `GECScoreDetector` | Grammar Error Correction scoring. Corrects grammar with a GEC model and measures ROUGE-2 similarity — AI text needs fewer corrections. (Wu et al., COLING 2025) |
+| `irm` | `IRMDetector` | Implicit Reward Model. Log-likelihood ratio between an instruction-tuned model and its base counterpart via DPO theory. (Liu et al., NeurIPS 2025) |
+| `biscope` | `BiScopeDetector` | Bidirectional cross-entropy. Measures both forward (next-token) and backward (memorisation) CE signals from a causal LM. (Guo et al., NeurIPS 2024) |
+| `tocsin` | `TOCSINDetector` | Token Cohesiveness. Measures semantic difference after random token deletion via BARTScore, combined with Fast-DetectGPT curvature. (Ma & Wang, EMNLP 2024) |
+| `ipad` | `IPADDetector` | Inverse Prompt for AI Detection. Inverts the likely prompt and scores prompt-text consistency. (Fan et al., 2025) |
 
 **Perturbation / distribution-based methods:**
 
@@ -91,8 +96,10 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 |------|-------|--------|
 | `detectgpt` | `DetectGPTDetector` | Perturbation-based probability curvature. Uses T5 to generate perturbations and measures log-prob curvature. |
 | `fast_detectgpt` | `FastDetectGPTDetector` | Perturbation-free curvature. Estimates curvature from the model's own conditional distribution without generating perturbations. |
+| `adadetectgpt` | `AdaDetectGPTDetector` | Adaptive DetectGPT. Extends Fast-DetectGPT with a learned B-spline witness function for improved detection power. (Jin et al., NeurIPS 2025) |
 | `npr` | `NPRDetector` | Normalized Perturbation Rank. Like DetectGPT but uses log-rank instead of log-probability. |
 | `lastde_pp` | `LastdePPDetector` | Distribution-based extension of Lastde — samples alternative tokens from the model's distribution and computes a normalised discrepancy (like Fast-DetectGPT but using MDE as the scoring function). |
+| `glimpse` | `GlimpseDetector` | Probability Distribution Estimation + Fast-DetectGPT. Estimates full token distributions from top-K log-probs using a geometric tail model. (Bao et al., ICLR 2025) |
 
 **Multi-model / generation-based methods:**
 
@@ -100,7 +107,10 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 |------|-------|--------|
 | `binoculars` | `BinocularsDetector` | Two-model perplexity ratio. Compares an observer and performer model. |
 | `dna_gpt` | `DNAGPTDetector` | Divergent N-Gram Analysis. Truncates text, regenerates continuations, compares log-probs of original vs. re-generated. |
+| `dna_detectllm` | `DNADetectLLMDetector` | DNA-inspired mutation-repair paradigm. Constructs an ideal AI sequence and measures repair effort via perplexity and cross-perplexity. (Zhu et al., NeurIPS 2025) |
 | `revise_detect` | `ReviseDetector` | Revision-based detection. Uses a seq2seq model to revise text and computes BARTScore similarity — AI text changes less when revised. |
+| `raidar` | `RaidarDetector` | Rewriting-invariance detection. Rewrites text with multiple prompts and measures edit distance — AI text is more invariant under rewriting. (Mao et al., ICLR 2024) |
+| `ghostbuster` | `GhostbusterDetector` | Multi-model probability features. Uses multiple LMs to extract per-token probability vectors and computes structured features for classification. (Verma et al., NAACL 2024) |
 
 **Layer / representation analysis methods:**
 
@@ -108,8 +118,10 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 |------|-------|--------|
 | `text_fluoroscopy` | `TextFluoroscopyDetector` | Layer-wise KL divergence analysis. Projects each transformer layer's hidden state to vocabulary space and measures KL divergence between intermediate and final layers. Human text shows higher max-KL. |
 | `coco` | `CoCoDetector` | Measures inter-sentence coherence via cosine similarity of hidden-state embeddings. Human text shows more varied coherence patterns than machine text. |
+| `phd` | `PHDDetector` | Persistent Homology Dimension. Estimates intrinsic dimension of token embeddings via MST weight scaling — human text has higher intrinsic dimension. (Tulchinskii et al., NeurIPS 2023) |
+| `mle_ide` | `MLEDetector` | Maximum Likelihood intrinsic dimension estimation (Levina-Bickel). Uses k-NN distance ratios on token embeddings. (Tulchinskii et al., NeurIPS 2023) |
 
-**Supervised methods:**
+**Supervised / reward-model methods:**
 
 | Name | Class | Method |
 |------|-------|--------|
@@ -117,7 +129,16 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 | `roberta_large` | `RobertaLargeDetector` | Pre-trained [RoBERTa Large OpenAI Detector](https://huggingface.co/openai-community/roberta-large-openai-detector). Same approach as base but with a larger backbone. Also available as `"roberta_openai_large"`. |
 | `radar` | `RADARDetector` | RoBERTa-large fine-tuned jointly with a paraphraser for robustness against paraphrase attacks. |
 | `imbd` | `ImBDDetector` | Imitate Before Detect. Fine-tunes GPT-Neo-2.7B with Style Preference Optimization (SPO) to learn machine writing preferences, then uses the analytic sampling discrepancy as the detection score. |
+| `remodetect` | `ReMoDetectDetector` | Reward Model detection. Uses a pre-trained reward model (DeBERTa-v3-Large) to score text — aligned LLMs produce text with higher reward scores. (Lee et al., NeurIPS 2024) |
+| `detective` | `DeTeCtiveDetector` | Multi-level contrastive learning. Learns embeddings via a 3-level contrastive hierarchy (model → family → label) with KNN inference. (He et al., NeurIPS 2024) |
 
+**OOD-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `dsvdd` | `DSVDDDetector` | Deep SVDD. Learns a hypersphere around LLM text embeddings; distance from centre indicates human text (OOD). (Zeng et al., NeurIPS 2025) |
+| `hrn` | `HRNDetector` | Holistic Regularised Network. Per-model one-class classifiers with gradient penalty, averaged at inference. (Zeng et al., NeurIPS 2025) |
+| `energy_detector` | `EnergyDetector` | Energy-based OOD detection. Uses log-sum-exp of multi-class classifier logits as the energy score. (Zeng et al., NeurIPS 2025) |
 ---
 
 ## Core Components
