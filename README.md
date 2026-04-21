@@ -31,6 +31,9 @@ Install only the dependencies you need:
 ```bash
 pip install detectzoo[all]     # all dependencies
 pip install detectzoo[text]    # transformers, accelerate
+pip install detectzoo[image]   # torchvision, Pillow, open-clip-torch
+pip install detectzoo[audio]   # torchaudio, librosa, soundfile
+pip install detectzoo[eval]    # scikit-learn, matplotlib
 pip install detectzoo[dev]     # all + pytest, ruff
 ```
 
@@ -50,6 +53,28 @@ result = detector.predict(text)
 
 print(result)
 # DetectionResult(score=1.2345, label='ai', confidence=0.8012)
+print(result.score, result.label)
+```
+
+### Detect AI-generated images
+
+```python
+from detectzoo import load_detector
+
+detector = load_detector("aeroblade")
+
+result = detector.predict("image.png")
+print(result.label)  # "ai" or "human"
+```
+
+### Detect synthetic audio
+
+```python
+from detectzoo import load_detector
+
+detector = load_detector("rawnet2")
+
+result = detector.predict("speech.wav")
 print(result.score, result.label)
 ```
 
@@ -139,6 +164,18 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 | `dsvdd` | `DSVDDDetector` | Deep SVDD. Learns a hypersphere around LLM text embeddings; distance from centre indicates human text (OOD). (Zeng et al., NeurIPS 2025) |
 | `hrn` | `HRNDetector` | Holistic Regularised Network. Per-model one-class classifiers with gradient penalty, averaged at inference. (Zeng et al., NeurIPS 2025) |
 | `energy_detector` | `EnergyDetector` | Energy-based OOD detection. Uses log-sum-exp of multi-class classifier logits as the energy score. (Zeng et al., NeurIPS 2025) |
+
+### Image
+
+Detectors for identifying AI-generated images (diffusion, GAN, etc.). Each accepts an image file path or a PIL `Image`.
+
+Table will be added soon.
+
+### Audio
+
+Detectors for identifying synthetic speech and deepfake audio. Each accepts an audio file path or a `(waveform, sample_rate)` tuple.
+
+Table will be added soon.
 ---
 
 ## Core Components
