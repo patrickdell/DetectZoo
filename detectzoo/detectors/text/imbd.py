@@ -2,7 +2,7 @@
 
 Reference:
     Chen et al., "Imitate Before Detect: Aligning Machine Stylistic
-    Preference for Machine-Revised Text Detection", AAAI 2025 (oral).
+    Preference for Machine-Revised Text Detection", AAAI 2025.
 
 ImBD first fine-tunes a causal LM (GPT-Neo-2.7B) with **Style
 Preference Optimization (SPO)** to learn machine writing preferences,
