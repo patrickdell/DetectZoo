@@ -1,23 +1,25 @@
-"""Binoculars detector — cross-perplexity ratio from two LMs.
+"""Binoculars detector — PPL / cross-perplexity ratio from two LMs.
 
 Reference:
     Hans et al., "Spotting LLMs With Binoculars: Zero-Shot
-    Detection of Machine-Generated Text", Arxiv 2024.
+    Detection of Machine-Generated Text", ICML 2024.
 
-The detector uses an *observer* and a *performer* model.  For human
-text both models have roughly equal perplexity, yielding a ratio close
-to 1.  For machine text the performer (closer to the generating model)
-has lower perplexity, pushing the ratio down.
+The detector uses an *observer* and a *performer* model.  The Binoculars
+score is:
 
-    B(x) = PPL_observer(x) / PPL_performer(x)
+    B(s) = PPL_performer(s) / X-PPL_{observer, performer}(s)
 
-Low Binoculars score → likely AI.  We negate the ratio so that
+where PPL is the standard perplexity of the *performer* and X-PPL is
+the *cross-perplexity*: the cross-entropy between the observer's
+softmax distribution and the performer's log-softmax, averaged over
+token positions.
+
+Low Binoculars score → likely AI.  We negate the log-ratio so that
 *higher* score → more likely AI, matching the rest of DetectZoo.
 """
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import torch
@@ -33,7 +35,7 @@ logger = get_logger(__name__)
 
 @register_detector("binoculars")
 class BinocularsDetector(BaseTextDetector):
-    """Binoculars detector (two-model perplexity ratio).
+    """Binoculars detector (PPL / cross-perplexity).
 
     Parameters:
         observer_model: Observer LM name (default ``"gpt2"``).
@@ -91,25 +93,68 @@ class BinocularsDetector(BaseTextDetector):
         self._performer_model.eval()
 
     # ------------------------------------------------------------------
-    # Perplexity helpers
+    # Scoring helpers
     # ------------------------------------------------------------------
 
     @torch.no_grad()
-    def _ppl(self, text: str, model, tokenizer) -> float:
-        enc = tokenizer(
+    def _get_both_logits(self, text: str):
+        """Tokenise *text* once and get logits from both models."""
+        enc = self.tokenizer(
             text,
             return_tensors="pt",
             truncation=True,
             max_length=self.max_length,
         ).to(self._device)
-        logits = model(**enc).logits
-        shift_logits = logits[:, :-1, :]
-        shift_labels = enc["input_ids"][:, 1:]
+        observer_logits = self.model(**enc).logits          # [1, T, V]
+        performer_logits = self.performer_model(**enc).logits  # [1, T, V]
+        return observer_logits, performer_logits, enc
+
+    @staticmethod
+    def _performer_ppl(performer_logits: torch.Tensor, input_ids: torch.Tensor) -> float:
+        """Standard perplexity of the performer on the token sequence."""
+        shift_logits = performer_logits[:, :-1, :].contiguous()
+        shift_labels = input_ids[:, 1:].contiguous()
         loss = F.cross_entropy(
-            shift_logits.reshape(-1, shift_logits.size(-1)),
-            shift_labels.reshape(-1),
+            shift_logits.view(-1, shift_logits.size(-1)),
+            shift_labels.view(-1),
         )
-        return math.exp(float(loss))
+        return float(loss)  # log-perplexity (we keep in log-space)
+
+    @staticmethod
+    def _cross_perplexity(
+        observer_logits: torch.Tensor,
+        performer_logits: torch.Tensor,
+        input_ids: torch.Tensor,
+        pad_token_id: int | None = None,
+    ) -> float:
+        """Cross-perplexity: CE(observer_softmax, performer_log_softmax).
+
+        For each token position, treat the observer's softmax output as the
+        target distribution and compute the cross-entropy against the
+        performer's log-softmax — then average over positions.
+        """
+        # Use all token positions (not shifted) following the official code
+        observer_probs = F.softmax(observer_logits, dim=-1).view(-1, observer_logits.size(-1))
+        performer_scores = performer_logits.view(-1, performer_logits.size(-1))
+
+        # F.cross_entropy with soft targets (probabilities as target)
+        ce = F.cross_entropy(
+            input=performer_scores,
+            target=observer_probs,
+            reduction="none",
+        )  # [T_total]
+
+        total_tokens = observer_logits.shape[-2]
+        ce = ce.view(-1, total_tokens)
+
+        # Build a padding mask if needed
+        if pad_token_id is not None:
+            mask = (input_ids != pad_token_id).float()
+            x_ppl = (ce * mask).sum(dim=1) / mask.sum(dim=1).clamp(min=1.0)
+        else:
+            x_ppl = ce.mean(dim=1)
+
+        return float(x_ppl.squeeze(0))
 
     # ------------------------------------------------------------------
     # Prediction
@@ -118,19 +163,26 @@ class BinocularsDetector(BaseTextDetector):
     def predict(self, input_data: Any) -> DetectionResult:
         text = self._normalise_input(input_data)
 
-        ppl_observer = self._ppl(text, self.model, self.tokenizer)
-        ppl_performer = self._ppl(text, self.performer_model, self.performer_tokenizer)
+        observer_logits, performer_logits, enc = self._get_both_logits(text)
 
-        ratio = ppl_observer / max(ppl_performer, 1e-8)
+        log_ppl = self._performer_ppl(performer_logits, enc["input_ids"])
+        x_ppl = self._cross_perplexity(
+            observer_logits,
+            performer_logits,
+            enc["input_ids"],
+            pad_token_id=self.tokenizer.pad_token_id,
+        )
 
-        # Negate so higher → more likely AI (when performer has lower PPL,
-        # ratio > 1, and negated ratio < 0 for human; for machine text
-        # ratio < 1, negated > 0).
-        score = -math.log(ratio)
+        # Binoculars score = ppl / x_ppl (in log-space: log_ppl / x_ppl_val)
+        binoculars_score = log_ppl / max(x_ppl, 1e-8)
+
+        # Low Binoculars score → likely AI.
+        # Negate so higher score → more likely AI (DetectZoo convention).
+        score = -binoculars_score
 
         return self._make_result(
             score,
-            ppl_observer=ppl_observer,
-            ppl_performer=ppl_performer,
-            ratio=ratio,
+            log_perplexity=log_ppl,
+            cross_perplexity=x_ppl,
+            binoculars_raw=binoculars_score,
         )
