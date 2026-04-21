@@ -11,6 +11,7 @@ from detectzoo.detectors.image.npr_deepfake import NPRDeepfakeDetector
 from detectzoo.detectors.image.patchcraft import PatchCraftDetector
 from detectzoo.detectors.image.safe import SAFEDetector
 from detectzoo.detectors.image.univfd import UnivFDDetector
+from detectzoo.detectors.image.c2p_clip import C2PCLIPDetector
 
 __all__ = [
     "AerobladeDetector",
@@ -24,4 +25,5 @@ __all__ = [
     "PatchCraftDetector",
     "SAFEDetector",
     "UnivFDDetector",
+    "C2PCLIPDetector",
 ]
