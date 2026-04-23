@@ -1,21 +1,40 @@
+# DetectZoo — flat requirements for a full install across all modalities
+# EXCEPT the XLSR-Mamba heavy stack (fairseq + mamba-ssm + causal-conv1d).
+# For that, see `pip install detectzoo[xlsr_mamba]` in pyproject.toml.
+
+# --- core ---------------------------------------------------------------
 numpy>=1.24
 torch>=2.0
 tqdm>=4.60
+
+# --- text detectors -----------------------------------------------------
 transformers>=4.30
 accelerate>=0.20
 datasets>=2.14
+scipy>=1.10          # detectzoo.detectors.text.ide (cdist)
+
+# --- image detectors ----------------------------------------------------
 torchvision>=0.15
 Pillow>=9.0
 open-clip-torch>=2.20
 diffusers>=0.21
 lpips>=0.1
-huggingface_hub>=0.16
+pytorch_wavelets>=1.3  # detectzoo.detectors.image.safe / fatformer
+
+# --- audio detectors ----------------------------------------------------
 torchaudio>=2.0
 librosa>=0.10
 soundfile>=0.12
-scikit-learn>=1.2
-matplotlib>=3.7
+
+# --- dataset loaders / downloads ----------------------------------------
+huggingface_hub>=0.16
 gdown>=4.0
 modelscope>=1.9
+
+# --- evaluation & metrics ----------------------------------------------
+scikit-learn>=1.2
+matplotlib>=3.7
+
+# --- misc helpers used by specific detectors ---------------------------
 peft>=0.10
 openai>=1.0
