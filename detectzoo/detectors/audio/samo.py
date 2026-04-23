@@ -1,0 +1,696 @@
+"""SAMO — Speaker Attractor Multi-center One-class learning for voice anti-spoofing.
+
+Reference:
+    Ding, Zhang, Duan, "SAMO: Speaker Attractor Multi-Center One-Class Learning
+    for Voice Anti-Spoofing", ICASSP 2023.
+    https://arxiv.org/abs/2211.02718
+
+GitHub:  https://github.com/sivannavis/samo
+Weights: https://github.com/sivannavis/samo/raw/master/models/samo.pt
+         (1.37 MB, ASVspoof 2019 LA EER ~0.88%)
+
+Notes
+-----
+The authors release ``samo.pt`` as a **pickled full** ``nn.Module`` (not a plain
+state-dict) trained on the raw-waveform AASIST backbone from
+``sivannavis/samo/samo/aasist/AASIST.py``. To make ``torch.load`` succeed we
+register a tiny ``sys.modules['aasist.AASIST']`` shim that exposes the expected
+class names (``Model``, ``Residual_block``, ``GraphAttentionLayer``,
+``HtrgGraphAttentionLayer``, ``GraphPool``, ``CONV``).
+
+At inference time we use the **classification-head** score (``feat_outputs[:, 1]``
+after softmax) as the spoof probability. This avoids the per-speaker enrollment
+step required for the full SAMO similarity scoring, which is impractical in a
+zero-config detector context.
+"""
+
+from __future__ import annotations
+
+import math
+import random
+import sys
+import types
+from pathlib import Path
+from typing import Any, Optional, Tuple, Union
+
+import numpy as np
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+from torch import Tensor
+
+from detectzoo.core.base import BaseDetector, DetectionResult
+from detectzoo.core.registry import register_detector
+from detectzoo.datasets._download import download_file, get_cache_dir
+
+_CKPT_URL = "https://github.com/sivannavis/samo/raw/master/models/samo.pt"
+_CKPT_NAME = "samo.pt"
+
+_SAMPLE_RATE = 16_000
+_MAX_SAMPLES = 64_600
+
+_MODEL_CONFIG: dict = {
+    "nb_samp": 64_600,
+    "first_conv": 128,
+    "filts": [70, [1, 32], [32, 32], [32, 64], [64, 64]],
+    "gat_dims": [64, 32],
+    "pool_ratios": [0.5, 0.7, 0.5, 0.5],
+    "temperatures": [2.0, 2.0, 100.0, 100.0],
+}
+
+
+# ---------------------------------------------------------------------------
+# Vendored upstream architecture — copied VERBATIM from
+#   https://github.com/sivannavis/samo/blob/master/samo/aasist/AASIST.py
+# so that pickled ``samo.pt`` instances round-trip cleanly. Do not rename these
+# classes — pickle stores their qualified names.
+# ---------------------------------------------------------------------------
+
+
+class GraphAttentionLayer(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, **kwargs: Any) -> None:
+        super().__init__()
+        self.att_proj = nn.Linear(in_dim, out_dim)
+        self.att_weight = self._init_new_params(out_dim, 1)
+        self.proj_with_att = nn.Linear(in_dim, out_dim)
+        self.proj_without_att = nn.Linear(in_dim, out_dim)
+        self.bn = nn.BatchNorm1d(out_dim)
+        self.input_drop = nn.Dropout(p=0.2)
+        self.act = nn.SELU(inplace=True)
+        self.temp = kwargs.get("temperature", 1.0)
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.input_drop(x)
+        att_map = self._derive_att_map(x)
+        x = self._project(x, att_map)
+        x = self._apply_BN(x)
+        return self.act(x)
+
+    def _pairwise_mul_nodes(self, x: Tensor) -> Tensor:
+        n = x.size(1)
+        x = x.unsqueeze(2).expand(-1, -1, n, -1)
+        return x * x.transpose(1, 2)
+
+    def _derive_att_map(self, x: Tensor) -> Tensor:
+        att_map = self._pairwise_mul_nodes(x)
+        att_map = torch.tanh(self.att_proj(att_map))
+        att_map = torch.matmul(att_map, self.att_weight)
+        att_map = att_map / self.temp
+        return F.softmax(att_map, dim=-2)
+
+    def _project(self, x: Tensor, att_map: Tensor) -> Tensor:
+        x1 = self.proj_with_att(torch.matmul(att_map.squeeze(-1), x))
+        x2 = self.proj_without_att(x)
+        return x1 + x2
+
+    def _apply_BN(self, x: Tensor) -> Tensor:
+        org = x.size()
+        x = x.view(-1, org[-1])
+        x = self.bn(x)
+        return x.view(org)
+
+    @staticmethod
+    def _init_new_params(*size: int) -> nn.Parameter:
+        p = nn.Parameter(torch.empty(*size))
+        nn.init.xavier_normal_(p)
+        return p
+
+
+class HtrgGraphAttentionLayer(nn.Module):
+    def __init__(self, in_dim: int, out_dim: int, **kwargs: Any) -> None:
+        super().__init__()
+        self.proj_type1 = nn.Linear(in_dim, in_dim)
+        self.proj_type2 = nn.Linear(in_dim, in_dim)
+        self.att_proj = nn.Linear(in_dim, out_dim)
+        self.att_projM = nn.Linear(in_dim, out_dim)
+        self.att_weight11 = self._init_new_params(out_dim, 1)
+        self.att_weight22 = self._init_new_params(out_dim, 1)
+        self.att_weight12 = self._init_new_params(out_dim, 1)
+        self.att_weightM = self._init_new_params(out_dim, 1)
+        self.proj_with_att = nn.Linear(in_dim, out_dim)
+        self.proj_without_att = nn.Linear(in_dim, out_dim)
+        self.proj_with_attM = nn.Linear(in_dim, out_dim)
+        self.proj_without_attM = nn.Linear(in_dim, out_dim)
+        self.bn = nn.BatchNorm1d(out_dim)
+        self.input_drop = nn.Dropout(p=0.2)
+        self.act = nn.SELU(inplace=True)
+        self.temp = kwargs.get("temperature", 1.0)
+
+    def forward(
+        self, x1: Tensor, x2: Tensor, master: Optional[Tensor] = None
+    ) -> Tuple[Tensor, Tensor, Tensor]:
+        n1, n2 = x1.size(1), x2.size(1)
+        x1 = self.proj_type1(x1)
+        x2 = self.proj_type2(x2)
+        x = torch.cat([x1, x2], dim=1)
+
+        if master is None:
+            master = torch.mean(x, dim=1, keepdim=True)
+
+        x = self.input_drop(x)
+        att_map = self._derive_att_map(x, n1, n2)
+        master = self._update_master(x, master)
+        x = self._project(x, att_map)
+        x = self._apply_BN(x)
+        x = self.act(x)
+        return x.narrow(1, 0, n1), x.narrow(1, n1, n2), master
+
+    def _update_master(self, x: Tensor, master: Tensor) -> Tensor:
+        att_map = self._derive_att_map_master(x, master)
+        return self._project_master(x, master, att_map)
+
+    @staticmethod
+    def _pairwise_mul_nodes(x: Tensor) -> Tensor:
+        n = x.size(1)
+        x = x.unsqueeze(2).expand(-1, -1, n, -1)
+        return x * x.transpose(1, 2)
+
+    def _derive_att_map_master(self, x: Tensor, master: Tensor) -> Tensor:
+        att_map = x * master
+        att_map = torch.tanh(self.att_projM(att_map))
+        att_map = torch.matmul(att_map, self.att_weightM) / self.temp
+        return F.softmax(att_map, dim=-2)
+
+    def _derive_att_map(self, x: Tensor, n1: int, n2: int) -> Tensor:
+        att_map = self._pairwise_mul_nodes(x)
+        att_map = torch.tanh(self.att_proj(att_map))
+        att_board = torch.zeros_like(att_map[:, :, :, 0]).unsqueeze(-1)
+        att_board[:, :n1, :n1, :] = torch.matmul(
+            att_map[:, :n1, :n1, :], self.att_weight11
+        )
+        att_board[:, n1:, n1:, :] = torch.matmul(
+            att_map[:, n1:, n1:, :], self.att_weight22
+        )
+        att_board[:, :n1, n1:, :] = torch.matmul(
+            att_map[:, :n1, n1:, :], self.att_weight12
+        )
+        att_board[:, n1:, :n1, :] = torch.matmul(
+            att_map[:, n1:, :n1, :], self.att_weight12
+        )
+        att_map = att_board / self.temp
+        return F.softmax(att_map, dim=-2)
+
+    def _project(self, x: Tensor, att_map: Tensor) -> Tensor:
+        x1 = self.proj_with_att(torch.matmul(att_map.squeeze(-1), x))
+        x2 = self.proj_without_att(x)
+        return x1 + x2
+
+    def _project_master(
+        self, x: Tensor, master: Tensor, att_map: Tensor
+    ) -> Tensor:
+        x1 = self.proj_with_attM(
+            torch.matmul(att_map.squeeze(-1).unsqueeze(1), x)
+        )
+        x2 = self.proj_without_attM(master)
+        return x1 + x2
+
+    def _apply_BN(self, x: Tensor) -> Tensor:
+        org = x.size()
+        x = x.view(-1, org[-1])
+        x = self.bn(x)
+        return x.view(org)
+
+    @staticmethod
+    def _init_new_params(*size: int) -> nn.Parameter:
+        p = nn.Parameter(torch.empty(*size))
+        nn.init.xavier_normal_(p)
+        return p
+
+
+class GraphPool(nn.Module):
+    def __init__(self, k: float, in_dim: int, p: Union[float, int]) -> None:
+        super().__init__()
+        self.k = k
+        self.sigmoid = nn.Sigmoid()
+        self.proj = nn.Linear(in_dim, 1)
+        self.drop = nn.Dropout(p=p) if p > 0 else nn.Identity()
+        self.in_dim = in_dim
+
+    def forward(self, h: Tensor) -> Tensor:
+        z = self.drop(h)
+        scores = self.sigmoid(self.proj(z))
+        return self._top_k_graph(scores, h, self.k)
+
+    @staticmethod
+    def _top_k_graph(scores: Tensor, h: Tensor, k: float) -> Tensor:
+        _, n_nodes, n_feat = h.size()
+        n_keep = max(int(n_nodes * k), 1)
+        _, idx = torch.topk(scores, n_keep, dim=1)
+        idx = idx.expand(-1, -1, n_feat)
+        h = h * scores
+        return torch.gather(h, 1, idx)
+
+
+class CONV(nn.Module):
+    """SincNet-style learnable band-pass front-end (Mel-spaced filterbank init)."""
+
+    @staticmethod
+    def to_mel(hz: np.ndarray) -> np.ndarray:
+        return 2595 * np.log10(1 + hz / 700)
+
+    @staticmethod
+    def to_hz(mel: np.ndarray) -> np.ndarray:
+        return 700 * (10 ** (mel / 2595) - 1)
+
+    def __init__(
+        self,
+        out_channels: int,
+        kernel_size: int,
+        sample_rate: int = 16_000,
+        in_channels: int = 1,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+        bias: bool = False,
+        groups: int = 1,
+        mask: bool = False,
+    ) -> None:
+        super().__init__()
+        if in_channels != 1:
+            raise ValueError(
+                f"SincConv only supports one input channel (got {in_channels})"
+            )
+        if bias:
+            raise ValueError("SincConv does not support bias.")
+        if groups > 1:
+            raise ValueError("SincConv does not support groups.")
+
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size + 1 if kernel_size % 2 == 0 else kernel_size
+        self.sample_rate = sample_rate
+        self.stride = stride
+        self.padding = padding
+        self.dilation = dilation
+        self.mask = mask
+
+        nfft = 512
+        f = int(self.sample_rate / 2) * np.linspace(0, 1, int(nfft / 2) + 1)
+        fmel = self.to_mel(f)
+        bands_mel = np.linspace(np.min(fmel), np.max(fmel), self.out_channels + 1)
+        bands_hz = self.to_hz(bands_mel)
+
+        self.mel = bands_hz
+        self.hsupp = torch.arange(
+            -(self.kernel_size - 1) / 2, (self.kernel_size - 1) / 2 + 1
+        )
+        self.band_pass = torch.zeros(self.out_channels, self.kernel_size)
+        for i in range(len(self.mel) - 1):
+            fmin, fmax = self.mel[i], self.mel[i + 1]
+            h_high = (2 * fmax / self.sample_rate) * np.sinc(
+                2 * fmax * self.hsupp / self.sample_rate
+            )
+            h_low = (2 * fmin / self.sample_rate) * np.sinc(
+                2 * fmin * self.hsupp / self.sample_rate
+            )
+            self.band_pass[i, :] = Tensor(np.hamming(self.kernel_size)) * Tensor(
+                h_high - h_low
+            )
+
+    def forward(self, x: Tensor, mask: bool = False) -> Tensor:
+        bp = self.band_pass.clone().to(x.device)
+        if mask:
+            a = int(np.random.uniform(0, 20))
+            a0 = random.randint(0, bp.shape[0] - a)
+            bp[a0:a0 + a, :] = 0
+        self.filters = bp.view(self.out_channels, 1, self.kernel_size)
+        return F.conv1d(
+            x,
+            self.filters,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            bias=None,
+            groups=1,
+        )
+
+
+class Residual_block(nn.Module):
+    def __init__(self, nb_filts: list, first: bool = False) -> None:
+        super().__init__()
+        self.first = first
+        if not self.first:
+            self.bn1 = nn.BatchNorm2d(num_features=nb_filts[0])
+        self.conv1 = nn.Conv2d(
+            in_channels=nb_filts[0],
+            out_channels=nb_filts[1],
+            kernel_size=(2, 3),
+            padding=(1, 1),
+            stride=1,
+        )
+        self.selu = nn.SELU(inplace=True)
+        self.bn2 = nn.BatchNorm2d(num_features=nb_filts[1])
+        self.conv2 = nn.Conv2d(
+            in_channels=nb_filts[1],
+            out_channels=nb_filts[1],
+            kernel_size=(2, 3),
+            padding=(0, 1),
+            stride=1,
+        )
+        if nb_filts[0] != nb_filts[1]:
+            self.downsample = True
+            self.conv_downsample = nn.Conv2d(
+                in_channels=nb_filts[0],
+                out_channels=nb_filts[1],
+                padding=(0, 1),
+                kernel_size=(1, 3),
+                stride=1,
+            )
+        else:
+            self.downsample = False
+        self.mp = nn.MaxPool2d((1, 3))
+
+    def forward(self, x: Tensor) -> Tensor:
+        identity = x
+        if not self.first:
+            out = self.bn1(x)
+            out = self.selu(out)
+        else:
+            out = x
+        out = self.conv1(x)
+        out = self.bn2(out)
+        out = self.selu(out)
+        out = self.conv2(out)
+        if self.downsample:
+            identity = self.conv_downsample(identity)
+        out = out + identity
+        return self.mp(out)
+
+
+class Model(nn.Module):
+    """Raw-waveform AASIST backbone used by SAMO (upstream class name ``Model``).
+
+    Forward returns ``(embedding[B, 160], logits[B, 2])``. Index 0 of the logits
+    corresponds to the **bonafide** class under SAMO's training convention
+    (see :mod:`samo.main` — ``score = feat_outputs[:, 0]`` for SAMO-pretrained).
+    """
+
+    def __init__(self, d_args: dict) -> None:
+        super().__init__()
+        self.d_args = d_args
+        filts = d_args["filts"]
+        gat_dims = d_args["gat_dims"]
+        pool_ratios = d_args["pool_ratios"]
+        temperatures = d_args["temperatures"]
+
+        self.conv_time = CONV(
+            out_channels=filts[0],
+            kernel_size=d_args["first_conv"],
+            in_channels=1,
+        )
+        self.first_bn = nn.BatchNorm2d(num_features=1)
+        self.drop = nn.Dropout(0.5, inplace=True)
+        self.drop_way = nn.Dropout(0.2, inplace=True)
+        self.selu = nn.SELU(inplace=True)
+
+        self.encoder = nn.Sequential(
+            nn.Sequential(Residual_block(nb_filts=filts[1], first=True)),
+            nn.Sequential(Residual_block(nb_filts=filts[2])),
+            nn.Sequential(Residual_block(nb_filts=filts[3])),
+            nn.Sequential(Residual_block(nb_filts=filts[4])),
+            nn.Sequential(Residual_block(nb_filts=filts[4])),
+            nn.Sequential(Residual_block(nb_filts=filts[4])),
+        )
+
+        self.pos_S = nn.Parameter(torch.randn(1, 23, filts[-1][-1]))
+        self.master1 = nn.Parameter(torch.randn(1, 1, gat_dims[0]))
+        self.master2 = nn.Parameter(torch.randn(1, 1, gat_dims[0]))
+
+        self.GAT_layer_S = GraphAttentionLayer(
+            filts[-1][-1], gat_dims[0], temperature=temperatures[0]
+        )
+        self.GAT_layer_T = GraphAttentionLayer(
+            filts[-1][-1], gat_dims[0], temperature=temperatures[1]
+        )
+
+        self.HtrgGAT_layer_ST11 = HtrgGraphAttentionLayer(
+            gat_dims[0], gat_dims[1], temperature=temperatures[2]
+        )
+        self.HtrgGAT_layer_ST12 = HtrgGraphAttentionLayer(
+            gat_dims[1], gat_dims[1], temperature=temperatures[2]
+        )
+        self.HtrgGAT_layer_ST21 = HtrgGraphAttentionLayer(
+            gat_dims[0], gat_dims[1], temperature=temperatures[2]
+        )
+        self.HtrgGAT_layer_ST22 = HtrgGraphAttentionLayer(
+            gat_dims[1], gat_dims[1], temperature=temperatures[2]
+        )
+
+        self.pool_S = GraphPool(pool_ratios[0], gat_dims[0], 0.3)
+        self.pool_T = GraphPool(pool_ratios[1], gat_dims[0], 0.3)
+        self.pool_hS1 = GraphPool(pool_ratios[2], gat_dims[1], 0.3)
+        self.pool_hT1 = GraphPool(pool_ratios[2], gat_dims[1], 0.3)
+        self.pool_hS2 = GraphPool(pool_ratios[2], gat_dims[1], 0.3)
+        self.pool_hT2 = GraphPool(pool_ratios[2], gat_dims[1], 0.3)
+
+        self.out_layer = nn.Linear(5 * gat_dims[1], 2)
+
+    def forward(self, x: Tensor, Freq_aug: bool = False) -> Tuple[Tensor, Tensor]:
+        x = x.unsqueeze(1)
+        x = self.conv_time(x, mask=Freq_aug)
+        x = x.unsqueeze(dim=1)
+        x = F.max_pool2d(torch.abs(x), (3, 3))
+        x = self.first_bn(x)
+        x = self.selu(x)
+
+        e = self.encoder(x)
+
+        e_S, _ = torch.max(torch.abs(e), dim=3)
+        e_S = e_S.transpose(1, 2) + self.pos_S
+        gat_S = self.GAT_layer_S(e_S)
+        out_S = self.pool_S(gat_S)
+
+        e_T, _ = torch.max(torch.abs(e), dim=2)
+        e_T = e_T.transpose(1, 2)
+        gat_T = self.GAT_layer_T(e_T)
+        out_T = self.pool_T(gat_T)
+
+        out_T1, out_S1, master1 = self.HtrgGAT_layer_ST11(
+            out_T, out_S, master=self.master1
+        )
+        out_S1 = self.pool_hS1(out_S1)
+        out_T1 = self.pool_hT1(out_T1)
+        out_T_aug, out_S_aug, master_aug = self.HtrgGAT_layer_ST12(
+            out_T1, out_S1, master=master1
+        )
+        out_T1 = out_T1 + out_T_aug
+        out_S1 = out_S1 + out_S_aug
+        master1 = master1 + master_aug
+
+        out_T2, out_S2, master2 = self.HtrgGAT_layer_ST21(
+            out_T, out_S, master=self.master2
+        )
+        out_S2 = self.pool_hS2(out_S2)
+        out_T2 = self.pool_hT2(out_T2)
+        out_T_aug, out_S_aug, master_aug = self.HtrgGAT_layer_ST22(
+            out_T2, out_S2, master=master2
+        )
+        out_T2 = out_T2 + out_T_aug
+        out_S2 = out_S2 + out_S_aug
+        master2 = master2 + master_aug
+
+        out_T1 = self.drop_way(out_T1)
+        out_T2 = self.drop_way(out_T2)
+        out_S1 = self.drop_way(out_S1)
+        out_S2 = self.drop_way(out_S2)
+        master1 = self.drop_way(master1)
+        master2 = self.drop_way(master2)
+
+        out_T = torch.max(out_T1, out_T2)
+        out_S = torch.max(out_S1, out_S2)
+        master = torch.max(master1, master2)
+
+        t_max, _ = torch.max(torch.abs(out_T), dim=1)
+        t_avg = torch.mean(out_T, dim=1)
+        s_max, _ = torch.max(torch.abs(out_S), dim=1)
+        s_avg = torch.mean(out_S, dim=1)
+
+        last_hidden = torch.cat(
+            [t_max, t_avg, s_max, s_avg, master.squeeze(1)], dim=1
+        )
+        last_hidden = self.drop(last_hidden)
+        return last_hidden, self.out_layer(last_hidden)
+
+
+# ---------------------------------------------------------------------------
+# Pickle compatibility shim — samo.pt was saved from module path
+# ``aasist.AASIST`` so unpickling requires the classes to resolve there.
+# ---------------------------------------------------------------------------
+def _register_pickle_shim() -> None:
+    """Expose vendored classes at ``aasist.AASIST`` so ``torch.load`` can unpickle."""
+    if "aasist.AASIST" in sys.modules:
+        return
+
+    pkg = sys.modules.get("aasist") or types.ModuleType("aasist")
+    mod = types.ModuleType("aasist.AASIST")
+    for cls in (
+        CONV,
+        Residual_block,
+        GraphAttentionLayer,
+        HtrgGraphAttentionLayer,
+        GraphPool,
+        Model,
+    ):
+        setattr(mod, cls.__name__, cls)
+    pkg.AASIST = mod  # type: ignore[attr-defined]
+    sys.modules["aasist"] = pkg
+    sys.modules["aasist.AASIST"] = mod
+
+
+# ---------------------------------------------------------------------------
+# Audio helpers (mirror other audio detectors for consistency)
+# ---------------------------------------------------------------------------
+
+def _load_audio(path: Union[str, Path], target_sr: int = _SAMPLE_RATE) -> torch.Tensor:
+    """Load audio → mono float32 [T] at ``target_sr``."""
+    try:
+        import torchaudio
+        wav, sr = torchaudio.load(str(path))
+        if sr != target_sr:
+            wav = torchaudio.functional.resample(wav, sr, target_sr)
+    except Exception:
+        import soundfile as sf
+        data, sr = sf.read(str(path), always_2d=True)
+        wav = torch.from_numpy(data.T.astype(np.float32))
+        if sr != target_sr:
+            import torchaudio
+            wav = torchaudio.functional.resample(wav, sr, target_sr)
+    if wav.shape[0] > 1:
+        wav = wav.mean(dim=0, keepdim=True)
+    return wav.squeeze(0)
+
+
+def _pad_or_trim(wav: torch.Tensor, length: int) -> torch.Tensor:
+    t = wav.shape[-1]
+    if t < length:
+        wav = wav.repeat(math.ceil(length / t))
+    return wav[:length]
+
+
+# ---------------------------------------------------------------------------
+# DetectZoo wrapper
+# ---------------------------------------------------------------------------
+
+@register_detector("samo")
+class SAMODetector(BaseDetector):
+    """SAMO audio deepfake detector (Ding et al., ICASSP 2023).
+
+    Uses the raw-waveform AASIST backbone fine-tuned with the SAMO
+    one-class loss. The released ``samo.pt`` is a pickled ``nn.Module``
+    and is loaded via a lightweight ``aasist.AASIST`` import shim.
+
+    We score with the classification head (``softmax(logits)[:, 1]`` =
+    spoof probability), matching DetectZoo's convention (higher score =
+    more likely AI-generated). This skips the per-speaker enrollment
+    required for SAMO similarity scoring, which isn't practical in a
+    zero-config detector.
+
+    Parameters
+    ----------
+    checkpoint_path : str or Path, optional
+        Local ``.pt`` file. Defaults to auto-download from upstream GitHub.
+    threshold : float
+        Score threshold for ``"ai"`` label. Default ``0.5``.
+    device : str
+        ``"cpu"`` or ``"cuda"``.
+    cache_dir : str or Path, optional
+        Override download cache root.
+    """
+
+    modality = "audio"
+
+    def __init__(
+        self,
+        checkpoint_path: Optional[Union[str, Path]] = None,
+        *,
+        threshold: float = 0.5,
+        device: str = "cpu",
+        cache_dir: Optional[Union[str, Path]] = None,
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(threshold=threshold, device=device, **kwargs)
+
+        if checkpoint_path is not None:
+            self._weight_path = Path(checkpoint_path).expanduser().resolve()
+        else:
+            cache = get_cache_dir("samo", cache_dir)
+            self._weight_path = cache / _CKPT_NAME
+            download_file(_CKPT_URL, self._weight_path)
+
+        self._model = self._load_checkpoint()
+        self._model.to(self._device).eval()
+
+    def _load_checkpoint(self) -> nn.Module:
+        """Load ``samo.pt`` — either a state-dict or a pickled full Module."""
+        _register_pickle_shim()
+
+        try:
+            obj = torch.load(
+                self._weight_path, map_location="cpu", weights_only=True
+            )
+        except Exception:
+            obj = torch.load(
+                self._weight_path, map_location="cpu", weights_only=False
+            )
+
+        if isinstance(obj, nn.Module):
+            return obj
+
+        if isinstance(obj, dict):
+            for key in ("model", "state_dict", "model_state_dict"):
+                if key in obj and isinstance(obj[key], dict):
+                    obj = obj[key]
+                    break
+            obj = {k.replace("module.", ""): v for k, v in obj.items()}
+            model = Model(_MODEL_CONFIG)
+            missing, unexpected = model.load_state_dict(obj, strict=False)
+            if missing:
+                raise RuntimeError(
+                    f"SAMO checkpoint missing keys: {missing[:5]} …"
+                )
+            return model
+
+        raise RuntimeError(
+            f"Unexpected SAMO checkpoint type: {type(obj).__name__}"
+        )
+
+    def _normalize_input(self, input_data: Any) -> torch.Tensor:
+        """Accept path / numpy / tensor → mono waveform [T] at 16 kHz."""
+        if isinstance(input_data, torch.Tensor):
+            wav = input_data.float()
+            if wav.dim() > 1:
+                wav = wav.view(-1)
+        elif isinstance(input_data, np.ndarray):
+            wav = torch.from_numpy(input_data.astype(np.float32))
+            if wav.dim() > 1:
+                wav = wav.view(-1)
+        else:
+            wav = _load_audio(input_data, _SAMPLE_RATE)
+        return _pad_or_trim(wav, _MAX_SAMPLES)
+
+    @torch.no_grad()
+    def predict(self, input_data: Any) -> DetectionResult:
+        """Predict whether audio is AI-generated (spoofed).
+
+        Parameters
+        ----------
+        input_data
+            Audio file path, numpy array, or torch tensor (16 kHz mono).
+
+        Returns
+        -------
+        DetectionResult
+            score=P(ai), label='ai'/'human', confidence in [0,1].
+        """
+        wav = self._normalize_input(input_data).to(self._device)
+        wav = wav.view(1, -1)
+        _, logits = self._model(wav)
+        probs = torch.softmax(logits, dim=-1)
+
+        score_ai = float(probs[0, 1])
+        return self._make_result(
+            score_ai,
+            score_bonafide=float(probs[0, 0]),
+            score_spoof=float(probs[0, 1]),
+            logit_bonafide=float(logits[0, 0]),
+            logit_spoof=float(logits[0, 1]),
+        )
