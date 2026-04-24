@@ -227,7 +227,7 @@ for item in dataset:
 | OpenLLMText | `OpenLLMTextDataset` | ~340k samples from human + GPT-3.5, PaLM, LLaMA, GPT-2 | Zenodo |
 | MAGE | `MAGEDataset` | Multi-LLM text detection testbed for in- and out-of-distribution evaluation | HuggingFace (`yaful/MAGE`) |
 | M4 | `M4Dataset` | Multi-generator, multi-domain, multi-lingual MGT detection (EACL'24 best resource) | GitHub (`mbzuai-nlp/M4`) |
-| RAID | `RAIDDataset` | 10M+ documents, 11 LLMs × 11 genres × 12 adversarial attacks (ACL'24 shared benchmark) | HuggingFace (`liamdugan/raid`) |
+| RAID | `RAIDDataset` | 10M+ documents, 11 LLMs × 11 genres × 12 adversarial attacks (ACL'24 shared benchmark). **Note:** the original repo (`liamdugan/raid`) withholds test-set labels for leaderboard evaluation; we use a labeled re-split (`Shengkun/Raid_split`) so that test-set ground truth is available for offline evaluation. | HuggingFace (`Shengkun/Raid_split`) |
 | L2R | `L2RDataset` | 21-domain human/LLM corpus (GPT-3.5/4o, Gemini 1.5 Pro, Llama-3-70B) from ACL'25 | GitHub (`ranhli/l2r_data`) |
 | TuringBench | `TuringBenchDataset` | Human vs. 19 neural generators — binary TT and 20-way AA tasks (EMNLP'21) | HuggingFace (`turingbench/TuringBench`) |
 | WritingPrompts | `WritingPromptsDataset` | ~303k human-written stories from r/WritingPrompts | HuggingFace (`euclaise/writingprompts`) |
