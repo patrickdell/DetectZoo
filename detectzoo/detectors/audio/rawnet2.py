@@ -51,7 +51,91 @@ _NB_CLASSES      = 2
 
 
 # ---------------------------------------------------------------------------
-# Residual block  (FMS is top-level per official asvspoof-challenge/2021 code)
+# SincConv front-end
+# Direct port of asvspoof-challenge/2021/LA/Baseline-RawNet2/model.py::SincConv.
+# Deterministic Mel-spaced band-pass filterbank, recomputed at every forward.
+# Carries NO learnable parameters and NO registered buffers, which is why
+# the upstream checkpoint contains no ``Sinc_conv.*`` keys.
+# ---------------------------------------------------------------------------
+class _SincConv(nn.Module):
+    @staticmethod
+    def _to_mel(hz: np.ndarray) -> np.ndarray:
+        return 2595.0 * np.log10(1.0 + hz / 700.0)
+
+    @staticmethod
+    def _to_hz(mel: np.ndarray) -> np.ndarray:
+        return 700.0 * (10.0 ** (mel / 2595.0) - 1.0)
+
+    def __init__(
+        self,
+        out_channels: int,
+        kernel_size: int,
+        in_channels: int = 1,
+        sample_rate: int = 16_000,
+        stride: int = 1,
+        padding: int = 0,
+        dilation: int = 1,
+    ) -> None:
+        super().__init__()
+        if in_channels != 1:
+            raise ValueError("SincConv only supports in_channels=1")
+
+        if kernel_size % 2 == 0:
+            kernel_size += 1  # force odd (symmetric filter)
+
+        self.out_channels = out_channels
+        self.kernel_size  = kernel_size
+        self.sample_rate  = sample_rate
+        self.stride       = stride
+        self.padding      = padding
+        self.dilation     = dilation
+
+        n_fft = 512
+        f     = int(sample_rate / 2) * np.linspace(0, 1, int(n_fft / 2) + 1)
+        fmel  = self._to_mel(f)
+        band_edges_mel = np.linspace(fmel.min(), fmel.max(), out_channels + 1)
+        self.mel = self._to_hz(band_edges_mel)
+        self.hsupp = torch.arange(
+            -(kernel_size - 1) / 2.0, (kernel_size - 1) / 2.0 + 1
+        )
+        self.band_pass = torch.zeros(out_channels, kernel_size)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        for i in range(len(self.mel) - 1):
+            fmin = self.mel[i]
+            fmax = self.mel[i + 1]
+            hHigh = (2 * fmax / self.sample_rate) * np.sinc(
+                2 * fmax * self.hsupp.numpy() / self.sample_rate
+            )
+            hLow = (2 * fmin / self.sample_rate) * np.sinc(
+                2 * fmin * self.hsupp.numpy() / self.sample_rate
+            )
+            hideal = hHigh - hLow
+            self.band_pass[i, :] = torch.from_numpy(
+                np.hamming(self.kernel_size).astype(np.float32)
+                * hideal.astype(np.float32)
+            )
+
+        filters = self.band_pass.to(x.device).view(
+            self.out_channels, 1, self.kernel_size
+        )
+        return F.conv1d(
+            x, filters,
+            stride=self.stride,
+            padding=self.padding,
+            dilation=self.dilation,
+            bias=None,
+            groups=1,
+        )
+
+
+# ---------------------------------------------------------------------------
+# Residual block — faithful port of upstream ``Residual_block``.
+# Notable quirks preserved from upstream (part of the trained behaviour):
+#   * LeakyReLU(0.3), not SELU.
+#   * ``conv1(x)`` receives the ORIGINAL ``x`` rather than the bn1/lrelu-ed
+#     tensor (upstream discards the bn1 output before conv1).
+#   * All convs use ``bias=True`` (default); the checkpoint stores these.
 # ---------------------------------------------------------------------------
 class _ResBlock(nn.Module):
     def __init__(self, nb_filts: list, first: bool = False) -> None:
@@ -59,51 +143,59 @@ class _ResBlock(nn.Module):
         self.first = first
         if not first:
             self.bn1 = nn.BatchNorm1d(nb_filts[0])
+        self.lrelu = nn.LeakyReLU(negative_slope=0.3)
         self.conv1 = nn.Conv1d(nb_filts[0], nb_filts[1],
-                               kernel_size=3, padding=1, bias=False)
+                               kernel_size=3, padding=1, stride=1)
         self.bn2   = nn.BatchNorm1d(nb_filts[1])
         self.conv2 = nn.Conv1d(nb_filts[1], nb_filts[1],
-                               kernel_size=3, padding=1, bias=False)
-        self.mp    = nn.MaxPool1d(3)
-        self.selu  = nn.SELU(inplace=True)
+                               kernel_size=3, padding=1, stride=1)
         if nb_filts[0] != nb_filts[1]:
+            self.downsample = True
             self.conv_downsample = nn.Conv1d(
-                nb_filts[0], nb_filts[1], kernel_size=1, bias=False
+                nb_filts[0], nb_filts[1], kernel_size=1, padding=0, stride=1
             )
+        else:
+            self.downsample = False
+        self.mp = nn.MaxPool1d(3)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         identity = x
         if not self.first:
-            x = self.selu(self.bn1(x))
-        x = self.conv1(x)
-        x = self.selu(self.bn2(x))
-        x = self.conv2(x)
-        if hasattr(self, "conv_downsample"):
+            out = self.bn1(x)
+            out = self.lrelu(out)
+        else:
+            out = x
+        out = self.conv1(x)        # upstream quirk: uses x, not bn1(x)
+        out = self.bn2(out)
+        out = self.lrelu(out)
+        out = self.conv2(out)
+        if self.downsample:
             identity = self.conv_downsample(identity)
-        x = x + identity
-        return self.mp(x)
+        out = out + identity
+        return self.mp(out)
 
 
 # ---------------------------------------------------------------------------
-# Full RawNet2 model
+# Full RawNet2 model — matches d_args used for the ASVspoof 2019 LA / 2021
+# pretrained checkpoints (model_config_RawNet.yaml):
+#     first_conv=1024, filts=[20, [20,20], [20,128], [128,128]],
+#     gru_node=1024, nb_gru_layer=3, nb_fc_node=1024, nb_classes=2
 # ---------------------------------------------------------------------------
 class _RawNet2Model(nn.Module):
     def __init__(self) -> None:
         super().__init__()
 
-        # front-end (fixed conv, matches checkpoint key "first_conv")
-        self.first_conv = nn.Conv1d(
-            1, _NB_SINC_FILTERS,
+        self.Sinc_conv = _SincConv(
+            out_channels=_NB_SINC_FILTERS,
             kernel_size=_SINC_FILTER_LEN,
-            stride=1,
-            padding=_SINC_FILTER_LEN // 2,
-            bias=False,
+            in_channels=1,
+            sample_rate=_SAMPLE_RATE,
         )
         self.first_bn = nn.BatchNorm1d(_NB_SINC_FILTERS)
         self.selu     = nn.SELU(inplace=True)
         self.sig      = nn.Sigmoid()
 
-        # residual blocks
+        # Residual blocks  (channel schedule: 20→20→20→128→128→128→128)
         self.block0 = nn.Sequential(_ResBlock([_NB_FILTS[0], _NB_FILTS[1]], first=True))
         self.block1 = nn.Sequential(_ResBlock([_NB_FILTS[1], _NB_FILTS[2]]))
         self.block2 = nn.Sequential(_ResBlock([_NB_FILTS[2], _NB_FILTS[3]]))
@@ -111,55 +203,87 @@ class _RawNet2Model(nn.Module):
         self.block4 = nn.Sequential(_ResBlock([_NB_FILTS[4], _NB_FILTS[5]]))
         self.block5 = nn.Sequential(_ResBlock([_NB_FILTS[5], _NB_FILTS[6]]))
 
-        # FMS attention — top-level, one per block (matches checkpoint keys)
-        self.avgpool       = nn.AdaptiveAvgPool1d(1)
-        self.fc_attention0 = nn.Linear(_NB_FILTS[1], _NB_FILTS[1])
-        self.fc_attention1 = nn.Linear(_NB_FILTS[2], _NB_FILTS[2])
-        self.fc_attention2 = nn.Linear(_NB_FILTS[3], _NB_FILTS[3])
-        self.fc_attention3 = nn.Linear(_NB_FILTS[4], _NB_FILTS[4])
-        self.fc_attention4 = nn.Linear(_NB_FILTS[5], _NB_FILTS[5])
-        self.fc_attention5 = nn.Linear(_NB_FILTS[6], _NB_FILTS[6])
+        # Upstream wraps each FMS in nn.Sequential → keys are
+        #   ``fc_attention{i}.0.weight/bias`` (note the ``.0.``).
+        self.avgpool = nn.AdaptiveAvgPool1d(1)
+        self.fc_attention0 = self._make_attention_fc(_NB_FILTS[1], _NB_FILTS[1])
+        self.fc_attention1 = self._make_attention_fc(_NB_FILTS[2], _NB_FILTS[2])
+        self.fc_attention2 = self._make_attention_fc(_NB_FILTS[3], _NB_FILTS[3])
+        self.fc_attention3 = self._make_attention_fc(_NB_FILTS[4], _NB_FILTS[4])
+        self.fc_attention4 = self._make_attention_fc(_NB_FILTS[5], _NB_FILTS[5])
+        self.fc_attention5 = self._make_attention_fc(_NB_FILTS[6], _NB_FILTS[6])
 
-        # back-end
         self.bn_before_gru = nn.BatchNorm1d(_NB_FILTS[-1])
         self.gru = nn.GRU(
             input_size=_NB_FILTS[-1],
             hidden_size=_GRU_NODE,
-            num_layers=1,
+            num_layers=3,                # upstream: nb_gru_layer=3
             batch_first=True,
         )
         self.fc1_gru = nn.Linear(_GRU_NODE, _NB_FC_NODE)
-        self.fc2_gru = nn.Linear(_NB_FC_NODE, _NB_CLASSES)
+        self.fc2_gru = nn.Linear(_NB_FC_NODE, _NB_CLASSES, bias=True)
+        self.logsoftmax = nn.LogSoftmax(dim=1)
 
-    def _fms(self, x: torch.Tensor, fc: nn.Linear) -> torch.Tensor:
-        """Filter-wise feature Map Scaling (FMS) attention."""
-        y = self.avgpool(x).view(x.size(0), -1)
-        y = self.sig(fc(y)).view(x.size(0), -1, 1)
-        return x * y + y
+    @staticmethod
+    def _make_attention_fc(in_features: int, out_features: int) -> nn.Sequential:
+        return nn.Sequential(nn.Linear(in_features=in_features,
+                                       out_features=out_features))
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
         """x: [B, T] raw waveform at 16 kHz."""
         B, T = x.shape
         x = x.view(B, 1, T)
 
-        x = self.first_conv(x)
+        x = self.Sinc_conv(x)
         x = F.max_pool1d(torch.abs(x), 3)
-        x = self.selu(self.first_bn(x))
+        x = self.first_bn(x)
+        x = self.selu(x)
 
-        x = self._fms(self.block0(x), self.fc_attention0)
-        x = self._fms(self.block1(x), self.fc_attention1)
-        x = self._fms(self.block2(x), self.fc_attention2)
-        x = self._fms(self.block3(x), self.fc_attention3)
-        x = self._fms(self.block4(x), self.fc_attention4)
-        x = self._fms(self.block5(x), self.fc_attention5)
+        x0 = self.block0(x)
+        y0 = self.avgpool(x0).view(x0.size(0), -1)
+        y0 = self.fc_attention0(y0)
+        y0 = self.sig(y0).view(y0.size(0), y0.size(1), -1)
+        x = x0 * y0 + y0
 
-        x = self.selu(self.bn_before_gru(x))
-        x = x.permute(0, 2, 1)
+        x1 = self.block1(x)
+        y1 = self.avgpool(x1).view(x1.size(0), -1)
+        y1 = self.fc_attention1(y1)
+        y1 = self.sig(y1).view(y1.size(0), y1.size(1), -1)
+        x = x1 * y1 + y1
+
+        x2 = self.block2(x)
+        y2 = self.avgpool(x2).view(x2.size(0), -1)
+        y2 = self.fc_attention2(y2)
+        y2 = self.sig(y2).view(y2.size(0), y2.size(1), -1)
+        x = x2 * y2 + y2
+
+        x3 = self.block3(x)
+        y3 = self.avgpool(x3).view(x3.size(0), -1)
+        y3 = self.fc_attention3(y3)
+        y3 = self.sig(y3).view(y3.size(0), y3.size(1), -1)
+        x = x3 * y3 + y3
+
+        x4 = self.block4(x)
+        y4 = self.avgpool(x4).view(x4.size(0), -1)
+        y4 = self.fc_attention4(y4)
+        y4 = self.sig(y4).view(y4.size(0), y4.size(1), -1)
+        x = x4 * y4 + y4
+
+        x5 = self.block5(x)
+        y5 = self.avgpool(x5).view(x5.size(0), -1)
+        y5 = self.fc_attention5(y5)
+        y5 = self.sig(y5).view(y5.size(0), y5.size(1), -1)
+        x = x5 * y5 + y5
+
+        x = self.bn_before_gru(x)
+        x = self.selu(x)
+        x = x.permute(0, 2, 1)                # (B, F, T) → (B, T, F)
         self.gru.flatten_parameters()
         x, _ = self.gru(x)
         x = x[:, -1, :]
         x = self.fc1_gru(x)
-        return self.fc2_gru(x)
+        x = self.fc2_gru(x)
+        return self.logsoftmax(x)
 
 
 # ---------------------------------------------------------------------------
@@ -265,7 +389,23 @@ class RawNet2Detector(BaseDetector):
                     state = state[key]
                     break
         state = {k.replace("module.", ""): v for k, v in state.items()}
-        self._model.load_state_dict(state, strict=False)
+        # strict=False — upstream checkpoint has no ``Sinc_conv.*`` keys
+        # because ``SincConv`` stores its band-pass filter as a plain tensor
+        # (not a buffer) and has no learnable params. Any *other* missing or
+        # unexpected key means our architecture has drifted from upstream and
+        # will quietly poison EER numbers — so we surface them loudly.
+        result = self._model.load_state_dict(state, strict=False)
+        unexpected = [k for k in result.unexpected_keys]
+        missing = [k for k in result.missing_keys if not k.startswith("Sinc_conv.")]
+        if unexpected or missing:
+            from detectzoo.utils.logger import get_logger
+
+            get_logger(__name__).warning(
+                "RawNet2 checkpoint key mismatch -- EER will be degraded.\n"
+                "  missing   : %s\n  unexpected: %s",
+                missing,
+                unexpected,
+            )
 
     def _normalize_input(self, input_data: Any) -> torch.Tensor:
         if isinstance(input_data, torch.Tensor):
