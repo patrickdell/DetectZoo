@@ -5,6 +5,7 @@ from detectzoo.datasets.image.cnn_detection import CNNDetectionDataset
 from detectzoo.datasets.image.drct2m import DRCT2MDataset
 from detectzoo.datasets.image.self_synthesis import SelfSynthesisDataset
 from detectzoo.datasets.image.univfd import UnivFDDataset
+from detectzoo.datasets.image.genimage import GenImageDataset
 
 __all__ = [
     "AIGCDetectDataset",
@@ -12,4 +13,5 @@ __all__ = [
     "DRCT2MDataset",
     "SelfSynthesisDataset",
     "UnivFDDataset",
+    "GenImageDataset",
 ]
