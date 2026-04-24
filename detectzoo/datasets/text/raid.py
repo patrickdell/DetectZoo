@@ -5,8 +5,12 @@ Reference:
     Machine-Generated Text Detectors", ACL 2024.
     https://aclanthology.org/2024.acl-long.674.pdf
 
-HuggingFace: ``liamdugan/raid``
-GitHub    : https://github.com/liamdugan/raid
+Labeled splits sourced from ``Shengkun/Raid_split`` (re-split by the
+authors of "Human Texts Are Outliers: Detecting LLM-generated Texts
+via Out-of-distribution Detection").
+
+Original data: ``liamdugan/raid``
+GitHub       : https://github.com/liamdugan/raid
 """
 
 from __future__ import annotations
@@ -28,23 +32,40 @@ class RAIDDataset(BaseDataset):
     adversarial attacks.  Each row contains one *generation* (either a
     human reference or an LLM output under a specific configuration).
 
-    When *path* is omitted the CSV files are streamed from HuggingFace
-    (``liamdugan/raid``) via the ``datasets`` library.  To work offline,
-    download ``train.csv`` / ``test.csv`` / ``extra.csv`` from the
-    HuggingFace repo and point *path* to the containing directory.
+    By default data is streamed from the **labeled** re-split published
+    at ``Shengkun/Raid_split`` on HuggingFace, which provides fully
+    labeled train/test/test_new/test_attack splits with the complete
+    column set (id, model, domain, attack, decoding, repetition_penalty,
+    generation, …).  To use the original ``liamdugan/raid`` leaderboard
+    files instead, pass ``hf_repo="liamdugan/raid"`` and ``split="train"``
+    or ``split="extra"``.
+
+    For offline use, download the Parquet/CSV files and point *path* to
+    the containing directory.
 
     Parameters
     ----------
     path : str or Path, optional
-        Local directory with ``train.csv``/``test.csv``/``extra.csv`` or
-        a direct path to one such CSV file.  When *None* the dataset is
-        loaded from HuggingFace.
+        Local directory or file.  When *None* the dataset is loaded from
+        HuggingFace.
     split : str
-        Which RAID split to load.  One of ``"train"`` (labeled,
-        ~802 M w/o adversarial), ``"test"`` (leaderboard split — the
-        ``model`` column is still provided, but detector outputs are
-        typically evaluated on the official server), or ``"extra"``
-        (labeled, code + Czech + German).  Default ``"train"``.
+        Which split to load.  Default ``"train"``.
+
+        With the default ``Shengkun/Raid_split`` repo the available
+        splits are:
+
+        * ``"train"`` – 337 k fully-labeled rows
+        * ``"test"`` – 112 k fully-labeled rows
+        * ``"test_new"`` – 28.7 k rows
+        * ``"test_attack"`` – 103 k rows
+
+        When using ``hf_repo="liamdugan/raid"`` the available splits are
+        ``"train"``, ``"test"`` (unlabeled leaderboard split), and
+        ``"extra"``.
+    hf_repo : str
+        HuggingFace dataset identifier.  Default
+        ``"Shengkun/Raid_split"`` (fully-labeled re-split).  Set to
+        ``"liamdugan/raid"`` for the original leaderboard files.
     models : sequence of str, optional
         Filter to specific generators (e.g. ``["chatgpt", "gpt4"]``).
         Use ``"human"`` to keep the human baseline.  *None* loads all.
@@ -96,23 +117,27 @@ class RAIDDataset(BaseDataset):
         "  perplexity_misspelling, upper_lower, whitespace,\n"
         "  zero_width_space, synonym, paraphrase, alternative_spelling\n"
         "\n"
-        "Splits\n"
+        "Splits  (default: Shengkun/Raid_split, fully labeled)\n"
         "------\n"
-        "  train – labeled, 8 domains (English), 802 MB (non-adv) / 11.8 GB (w/ adv)\n"
-        "  test  – leaderboard split (labels hidden server-side, but the\n"
-        "          model column is provided for offline analysis)\n"
-        "  extra – labeled, 3 extra domains (code, czech, german)\n"
+        "  train       – 337 k rows\n"
+        "  test        – 112 k rows\n"
+        "  test_new    – 28.7 k rows\n"
+        "  test_attack – 103 k rows\n"
+        "  extra       – labeled, 3 extra domains (code, czech, german)\n"
+        "         (available only when using `liamdugan/raid` repo)\n"
         "\n"
-        "Labels: DetectZoo normalises to 0 = human, 1 = AI (any model).\n"
+        "Labels: 0 = human, 1 = AI (any model).\n"
         "        The full model name is preserved in metadata['model'].\n"
         "\n"
         "Benchmarking\n"
         "------------\n"
-        "Start with non-adversarial training data for a single model:\n"
+        "Non-adversarial training data for a single model:\n"
         "  RAIDDataset(split='train', models=['chatgpt'],\n"
         "              attacks=['none'], decoding=['greedy'])\n"
-        "Full adversarial sweep (16.7 GB!) — use max_samples or streaming:\n"
-        "  RAIDDataset(split='train', max_samples=20000)\n"
+        "Evaluate on the labeled test split:\n"
+        "  RAIDDataset(split='test', max_samples=5000)\n"
+        "Adversarial robustness evaluation:\n"
+        "  RAIDDataset(split='test_attack')\n"
     )
 
     MODELS = (
@@ -130,15 +155,15 @@ class RAIDDataset(BaseDataset):
         "whitespace", "zero_width_space", "synonym", "paraphrase",
         "alternative_spelling",
     )
-    SPLITS = ("train", "test", "extra")
+    SPLITS = ("train", "test", "test_new", "test_attack")
 
-    _HF_REPO = "liamdugan/raid"
-    _SPLIT_TO_FILE = {"train": "train.csv", "test": "test.csv", "extra": "extra.csv"}
+    _DEFAULT_HF_REPO = "Shengkun/Raid_split"
 
     def __init__(
         self,
         path: str | Path | None = None,
         split: str = "train",
+        hf_repo: str = _DEFAULT_HF_REPO,
         models: Sequence[str] | None = None,
         domains: Sequence[str] | None = None,
         attacks: Sequence[str] | None = None,
@@ -149,12 +174,9 @@ class RAIDDataset(BaseDataset):
         **kwargs: Any,
     ) -> None:
         super().__init__(max_samples=max_samples, **kwargs)
-        if split not in self._SPLIT_TO_FILE:
-            raise ValueError(
-                f"Unknown RAID split '{split}'. Valid: {list(self._SPLIT_TO_FILE)}"
-            )
         self.path = Path(path) if path is not None else None
         self.split = split
+        self.hf_repo = hf_repo
         self.models = {m.lower() for m in models} if models else None
         self.domains = {d.lower() for d in domains} if domains else None
         self.attacks = {a.lower() for a in attacks} if attacks else None
@@ -169,11 +191,11 @@ class RAIDDataset(BaseDataset):
     # ------------------------------------------------------------------
 
     def _keep(self, row: dict[str, Any]) -> bool:
-        model = str(row.get("model", "")).lower()
-        domain = str(row.get("domain", "")).lower()
-        attack = str(row.get("attack", "")).lower()
-        decoding = str(row.get("decoding", "")).lower()
-        rep = str(row.get("repetition_penalty", "")).lower()
+        model = str(row.get("model") or "").lower()
+        domain = str(row.get("domain") or "").lower()
+        attack = str(row.get("attack") or "").lower()
+        dec = str(row.get("decoding") or "").lower()
+        rep = str(row.get("repetition_penalty") or "").lower()
 
         if self.models is not None:
             if model not in self.models:
@@ -183,7 +205,7 @@ class RAIDDataset(BaseDataset):
             return False
         if self.attacks is not None and attack not in self.attacks:
             return False
-        if self.decoding is not None and decoding not in self.decoding:
+        if self.decoding is not None and dec not in self.decoding:
             return False
         if self.repetition_penalty is not None and rep not in self.repetition_penalty:
             return False
@@ -217,12 +239,7 @@ class RAIDDataset(BaseDataset):
     def _iter_rows_huggingface(self) -> Iterable[dict[str, Any]]:
         from datasets import load_dataset
 
-        ds = load_dataset(
-            self._HF_REPO,
-            data_files={self.split: self._SPLIT_TO_FILE[self.split]},
-            split=self.split,
-            streaming=True,
-        )
+        ds = load_dataset(self.hf_repo, split=self.split, streaming=True)
         for row in ds:
             yield row
 
