@@ -12,6 +12,8 @@ from detectzoo.detectors.image.patchcraft import PatchCraftDetector
 from detectzoo.detectors.image.safe import SAFEDetector
 from detectzoo.detectors.image.univfd import UnivFDDetector
 from detectzoo.detectors.image.c2p_clip import C2PCLIPDetector
+from detectzoo.detectors.image.manifold_bias import ManifoldBiasDetector
+from detectzoo.detectors.image.drct import DRCTDetector
 
 __all__ = [
     "AerobladeDetector",
@@ -26,4 +28,6 @@ __all__ = [
     "SAFEDetector",
     "UnivFDDetector",
     "C2PCLIPDetector",
+    "ManifoldBiasDetector",
+    "DRCTDetector",
 ]
