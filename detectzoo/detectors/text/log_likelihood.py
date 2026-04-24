@@ -23,6 +23,17 @@ from detectzoo.detectors.text.base import BaseTextDetector
 class LogLikelihoodDetector(BaseTextDetector):
     """Detect AI text via average log-likelihood under a language model.
 
+    Score = mean_i log p(x_i | x_{<i}).  Typically a negative number
+    (since probabilities are in (0, 1)); values closer to 0 (higher)
+    indicate machine-generated text.
+
+    There is no universal threshold for log-likelihood — it depends
+    on the scoring model, tokenizer and domain.  The ImBD / DetectGPT
+    / Fast-DetectGPT papers report only AUROC / AUPRC (threshold-free).
+    The default ``-3.0`` is a rough rule-of-thumb for ``gpt2`` on
+    English news text; calibrate it per (model, dataset) via
+    or passing your own ``threshold=...``.
+
     Parameters:
         model_name: HuggingFace model identifier (default ``"gpt2"``).
         threshold: Decision boundary on the score (default ``-3.0``).
