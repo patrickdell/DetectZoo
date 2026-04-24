@@ -17,7 +17,6 @@ model (default ``gpt2-large``), combined with simple n-gram baselines.
 
 from __future__ import annotations
 
-import re
 from typing import Any, List
 
 import numpy as np

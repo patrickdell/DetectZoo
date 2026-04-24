@@ -17,10 +17,10 @@ HuggingFace: ``EdinburghNLP/xsum``
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 
 @register_dataset("xsum")

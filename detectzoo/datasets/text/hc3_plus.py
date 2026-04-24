@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Sequence
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _GITHUB_RAW = (
     "https://raw.githubusercontent.com/suu990901/"

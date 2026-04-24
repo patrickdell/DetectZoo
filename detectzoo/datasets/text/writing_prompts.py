@@ -16,10 +16,10 @@ GitHub: https://github.com/facebookresearch/fairseq/blob/main/examples/stories/R
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, List, Optional
+from typing import Any, List
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 
 @register_dataset("writing_prompts")

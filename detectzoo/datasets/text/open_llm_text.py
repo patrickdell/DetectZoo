@@ -13,10 +13,10 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, List, Optional, Sequence
+from typing import Any, List, Sequence
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _ZENODO_BASE = "https://zenodo.org/records/8285326/files"
 

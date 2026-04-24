@@ -18,7 +18,6 @@ Human texts have higher intrinsic dimension (~9) than AI texts (~7.5).
 
 from __future__ import annotations
 
-import math
 from typing import Any
 
 import numpy as np

@@ -88,11 +88,9 @@ class TextFluoroscopyDetector(BaseTextDetector):
 
         last_logits = lm_head(hidden_states[-1])
         last_log_probs = F.log_softmax(last_logits, dim=-1)
-        last_probs = F.softmax(last_logits, dim=-1)
 
         first_logits = lm_head(hidden_states[1])  # layer 1 (after embedding)
         first_log_probs = F.log_softmax(first_logits, dim=-1)
-        first_probs = F.softmax(first_logits, dim=-1)
 
         kl_with_last = []
         kl_with_first = []
