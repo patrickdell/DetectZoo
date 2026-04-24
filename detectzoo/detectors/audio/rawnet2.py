@@ -6,7 +6,7 @@ Reference:
 
 GitHub:  https://github.com/eurecom-asp/rawnet2-antispoofing
          https://github.com/asvspoof-challenge/2021/tree/main/LA/Baseline-RawNet2
-Weights: https://www.asvspoof.org/asvspoof2021/pre_trained_DF_RawNet2.zip
+Weights: https://www.asvspoof.org/asvspoof2021/pre_trained_LA_RawNet2.zip
 
 Key idea:
     RawNet2 operates directly on raw waveforms via a fixed sinc filter
@@ -18,6 +18,7 @@ Key idea:
 from __future__ import annotations
 
 import math
+import shutil
 import zipfile
 from pathlib import Path
 from typing import Any, Optional, Union
@@ -34,9 +35,9 @@ from detectzoo.datasets._download import download_file, get_cache_dir
 # ---------------------------------------------------------------------------
 # Constants — dims verified from official pretrained checkpoint
 # ---------------------------------------------------------------------------
-_CKPT_URL  = "https://www.asvspoof.org/asvspoof2021/pre_trained_DF_RawNet2.zip"
-_CKPT_NAME = "pre_trained_DF_RawNet2.pth"
-_CKPT_ZIP  = "pre_trained_DF_RawNet2.zip"
+_CKPT_URL  = "https://www.asvspoof.org/asvspoof2021/pre_trained_LA_RawNet2.zip"
+_CKPT_NAME = "pre_trained_LA_RawNet2.pth"
+_CKPT_ZIP  = "pre_trained_LA_RawNet2.zip"
 
 _SAMPLE_RATE     = 16_000
 _MAX_SAMPLES     = 64_600
@@ -247,8 +248,8 @@ class RawNet2Detector(BaseDetector):
                     pth_names = [n for n in zf.namelist() if n.endswith(".pth")]
                     if not pth_names:
                         raise RuntimeError("No .pth found inside RawNet2 zip")
-                    with zf.open(pth_names[0]) as f:
-                        self._weight_path.write_bytes(f.read())
+                    with zf.open(pth_names[0]) as f, open(self._weight_path, "wb") as out:
+                        shutil.copyfileobj(f, out, length=1 << 20)
 
         self._model = _RawNet2Model()
         self._load_weights()
