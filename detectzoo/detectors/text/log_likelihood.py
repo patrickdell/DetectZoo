@@ -6,8 +6,8 @@ Reference:
 
 Scores text by average token log-probability under a causal LM.
 Machine-generated text tends to have *higher* average log-prob (lower
-perplexity) than human text, so the score is negated: higher score → more
-likely AI.
+perplexity) than human text, so we use the mean log-probability: 
+higher score → more likely AI.
 """
 
 from __future__ import annotations
@@ -42,5 +42,5 @@ class LogLikelihoodDetector(BaseTextDetector):
     def predict(self, input_data: Any) -> DetectionResult:
         text = self._normalise_input(input_data)
         avg_ll = self._mean_log_prob(text)
-        score = -avg_ll  # negate: lower perplexity → higher score
+        score = avg_ll
         return self._make_result(score, avg_log_likelihood=avg_ll)
