@@ -33,14 +33,14 @@ class LRRDetector(BaseTextDetector):
 
     Parameters:
         model_name: HuggingFace causal LM (default ``"gpt2"``).
-        threshold: Decision boundary.
+        threshold: Decision boundary (default ``1.3``).
         device: ``"cpu"`` or ``"cuda"``.
     """
 
     def __init__(
         self,
         model_name: str = "gpt2",
-        threshold: float = 0.0,
+        threshold: float = 1.3,
         device: str = "cpu",
         **kwargs: Any,
     ) -> None:
