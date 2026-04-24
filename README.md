@@ -226,6 +226,10 @@ for item in dataset:
 | CHEAT | `CHEATDataset` | 35k ChatGPT-written academic abstracts (generation, polish, fusion) | GitHub |
 | OpenLLMText | `OpenLLMTextDataset` | ~340k samples from human + GPT-3.5, PaLM, LLaMA, GPT-2 | Zenodo |
 | MAGE | `MAGEDataset` | Multi-LLM text detection testbed for in- and out-of-distribution evaluation | HuggingFace (`yaful/MAGE`) |
+| M4 | `M4Dataset` | Multi-generator, multi-domain, multi-lingual MGT detection (EACL'24 best resource) | GitHub (`mbzuai-nlp/M4`) |
+| RAID | `RAIDDataset` | 10M+ documents, 11 LLMs × 11 genres × 12 adversarial attacks (ACL'24 shared benchmark) | HuggingFace (`liamdugan/raid`) |
+| L2R | `L2RDataset` | 21-domain human/LLM corpus (GPT-3.5/4o, Gemini 1.5 Pro, Llama-3-70B) from ACL'25 | GitHub (`ranhli/l2r_data`) |
+| TuringBench | `TuringBenchDataset` | Human vs. 19 neural generators — binary TT and 20-way AA tasks (EMNLP'21) | HuggingFace (`turingbench/TuringBench`) |
 | WritingPrompts | `WritingPromptsDataset` | ~303k human-written stories from r/WritingPrompts | HuggingFace (`euclaise/writingprompts`) |
 | XSum | `XSumDataset` | BBC article summaries — human-written source corpus for detection benchmarks | HuggingFace (`EdinburghNLP/xsum`) |
 
