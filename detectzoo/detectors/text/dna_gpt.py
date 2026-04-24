@@ -41,14 +41,26 @@ class DNAGPTDetector(BaseTextDetector):
     re-generating continuations.  You may optionally specify a
     separate ``regen_model`` for generation.
 
+    The re-generation procedure is as follows:
+
+    * prefix = first ``truncate_ratio`` fraction of words
+    * sample all ``n_regens`` completions in a single batch
+    * retry the whole batch if the shortest completion is below ``min_words``
+    * trim both the original and each regen to the shorter of the two
+      before scoring, so log-prob means are comparable
+
     Parameters:
         model_name: Scoring model (default ``"gpt2"``).
-        regen_model: Model used to regenerate continuations.  Defaults
-            to the same as *model_name*.
-        truncate_ratio: Fraction of the text (by words) kept as the
-            prompt before re-generation (default ``0.5``).
-        n_regens: Number of re-generated continuations.
-        max_new_tokens: Maximum tokens to generate per continuation.
+        regen_model: Regeneration model.  Defaults to *model_name*.
+        truncate_ratio: Fraction of text (by words) kept as prompt (default 0.5).
+        n_regens: Number of re-generated continuations (default 10).
+        min_words: Minimum word count for each regen; the batch is
+            re-sampled until this is reached (default 55).
+        min_length: ``min_length`` passed to ``generate`` (default 150).
+        max_length: ``max_length`` passed to ``generate`` (default 300).
+        top_p: top-p for nucleus sampling (default 0.96).
+        temperature: Sampling temperature (default 1.0).
+        max_retries: Cap on regeneration retries (default 10).
         threshold: Decision boundary.
         device: ``"cpu"`` or ``"cuda"``.
     """
@@ -59,7 +71,12 @@ class DNAGPTDetector(BaseTextDetector):
         regen_model: str | None = None,
         truncate_ratio: float = 0.5,
         n_regens: int = 10,
-        max_new_tokens: int = 200,
+        min_words: int = 55,
+        min_length: int = 150,
+        max_length: int = 300,
+        top_p: float = 0.96,
+        temperature: float = 1.0,
+        max_retries: int = 10,
         threshold: float = 0.0,
         device: str = "cpu",
         **kwargs: Any,
@@ -68,7 +85,12 @@ class DNAGPTDetector(BaseTextDetector):
         self.regen_model_name = regen_model or model_name
         self.truncate_ratio = truncate_ratio
         self.n_regens = n_regens
-        self.max_new_tokens = max_new_tokens
+        self.min_words = min_words
+        self.gen_min_length = min_length
+        self.gen_max_length = max_length
+        self.top_p = top_p
+        self.temperature = temperature
+        self.max_retries = max_retries
         self._regen_model: torch.nn.Module | None = None
         self._regen_tokenizer: Any = None
 
@@ -109,26 +131,52 @@ class DNAGPTDetector(BaseTextDetector):
     # ------------------------------------------------------------------
 
     @torch.no_grad()
-    def _regenerate(self, prompt: str, target_word_count: int) -> str:
-        """Generate a continuation from *prompt* of roughly *target_word_count* words."""
+    def _sample_batch(self, prompt: str) -> list[str]:
+        """Return ``n_regens`` completions of *prompt*, retrying until they are long enough."""
+        prompts = [prompt] * self.n_regens
         enc = self.regen_tokenizer(
-            prompt, return_tensors="pt", truncation=True, max_length=self.max_length,
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
         ).to(self._device)
-        out = self.regen_model.generate(
-            **enc,
-            max_new_tokens=self.max_new_tokens,
-            do_sample=True,
-            top_p=0.96,
-            temperature=1.0,
-            pad_token_id=self.regen_tokenizer.pad_token_id,
-        )
-        full = self.regen_tokenizer.decode(out[0], skip_special_tokens=True)
-        words = full.split()[:len(prompt.split()) + target_word_count]
-        return " ".join(words)
+
+        eos_id = self.regen_tokenizer.eos_token_id
+        pad_id = self.regen_tokenizer.pad_token_id or eos_id
+
+        decoded: list[str] = []
+        for attempt in range(self.max_retries):
+            out = self.regen_model.generate(
+                **enc,
+                min_length=self.gen_min_length,
+                max_length=self.gen_max_length,
+                do_sample=True,
+                top_p=self.top_p,
+                temperature=self.temperature,
+                pad_token_id=pad_id,
+                eos_token_id=eos_id,
+            )
+            decoded = self.regen_tokenizer.batch_decode(out, skip_special_tokens=True)
+            m = min(len(x.split()) for x in decoded) if decoded else 0
+            if m >= self.min_words:
+                return decoded
+            logger.debug(
+                "DNA-GPT regeneration attempt %d: shortest %d < %d words, retrying.",
+                attempt + 1, m, self.min_words,
+            )
+        return decoded  # last attempt, even if still too short
 
     # ------------------------------------------------------------------
     # Prediction
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _trim_to_shorter_length(a: str, b: str) -> tuple[str, str]:
+        """Truncate *a* and *b* to the shorter of their two word lengths."""
+        wa, wb = a.split(" "), b.split(" ")
+        k = min(len(wa), len(wb))
+        return " ".join(wa[:k]), " ".join(wb[:k])
 
     def predict(self, input_data: Any) -> DetectionResult:
         text = self._normalise_input(input_data)
@@ -138,25 +186,35 @@ class DNAGPTDetector(BaseTextDetector):
 
         split_idx = max(3, int(len(words) * self.truncate_ratio))
         prompt = " ".join(words[:split_idx])
-        continuation_word_count = len(words) - split_idx
 
-        original_ll = self._mean_log_prob(text)
+        regens_raw = self._sample_batch(prompt)
+        if not regens_raw:
+            return self._make_result(0.0, reason="regeneration failed")
 
+        # For each regen, trim original and regen to the shorter length and score both.
+        # The ORIGINAL-side log-prob is recomputed per regen because the
+        # shorter-length trim differs regen-by-regen.
+        original_lls: list[float] = []
         regen_lls: list[float] = []
-        for _ in range(self.n_regens):
-            regen_text = self._regenerate(prompt, continuation_word_count)
-            if regen_text.strip():
-                regen_lls.append(self._mean_log_prob(regen_text))
+        for regen in regens_raw:
+            if not regen.strip():
+                continue
+            o_trim, r_trim = self._trim_to_shorter_length(text, regen)
+            if not o_trim.strip() or not r_trim.strip():
+                continue
+            original_lls.append(self._mean_log_prob(o_trim))
+            regen_lls.append(self._mean_log_prob(r_trim))
 
         if not regen_lls:
             return self._make_result(0.0, reason="regeneration failed")
 
+        mean_original_ll = float(np.mean(original_lls))
         mean_regen_ll = float(np.mean(regen_lls))
-        score = original_ll - mean_regen_ll
+        score = mean_original_ll - mean_regen_ll
 
         return self._make_result(
             score,
-            original_ll=original_ll,
+            original_ll=mean_original_ll,
             mean_regen_ll=mean_regen_ll,
             n_regens_used=len(regen_lls),
         )
