@@ -18,10 +18,28 @@ register a tiny ``sys.modules['aasist.AASIST']`` shim that exposes the expected
 class names (``Model``, ``Residual_block``, ``GraphAttentionLayer``,
 ``HtrgGraphAttentionLayer``, ``GraphPool``, ``CONV``).
 
-At inference time we use the **classification-head** score (``feat_outputs[:, 1]``
-after softmax) as the spoof probability. This avoids the per-speaker enrollment
-step required for the full SAMO similarity scoring, which is impractical in a
-zero-config detector context.
+Scoring
+-------
+The SAMO paper reports **EER ~0.88 %** on ASVspoof 2019 LA using
+**similarity scoring** (max cosine similarity between the 160-d embedding and a
+set of speaker attractors), not the classification head. The plain
+classification head on the same checkpoint is expected to yield **~5 % EER**
+(upstream ``main.py`` falls back to ``feat_outputs[:, 0]`` only for the ``fc``
+baseline).
+
+This wrapper supports three scoring modes:
+
+* ``"samo"`` (default) — upstream ``--one_hot`` fallback: use
+  ``torch.eye(160)[:20]`` as centers, score = ``max(normalize(embed)[:, :20])``.
+  Zero-config; reproduces the SAMO paper's similarity-scoring protocol without
+  needing the LA enrollment partition.
+* ``"ocsoftmax"`` — OC-Softmax direction: score = ``normalize(embed)[:, 0]``
+  (cosine similarity to a single one-hot attractor).
+* ``"fc"`` — classification head (``probs[:, 1]`` as the spoof probability);
+  matches ``feat_outputs[:, 0]`` upstream ``fc`` scoring.
+
+Call :meth:`SAMODetector.enroll` with a mapping ``{speaker_id: [audio, ...]}``
+to switch to speaker-aware scoring (upstream ``val_sp=1``, paper protocol).
 """
 
 from __future__ import annotations
@@ -570,6 +588,10 @@ def _pad_or_trim(wav: torch.Tensor, length: int) -> torch.Tensor:
 # DetectZoo wrapper
 # ---------------------------------------------------------------------------
 
+_ENC_DIM = 160  # SAMO embedding dim (5 * gat_dims[1] = 5 * 32)
+_NUM_CENTERS = 20  # upstream default --num_centers
+
+
 @register_detector("samo")
 class SAMODetector(BaseDetector):
     """SAMO audio deepfake detector (Ding et al., ICASSP 2023).
@@ -578,16 +600,27 @@ class SAMODetector(BaseDetector):
     one-class loss. The released ``samo.pt`` is a pickled ``nn.Module``
     and is loaded via a lightweight ``aasist.AASIST`` import shim.
 
-    We score with the classification head (``softmax(logits)[:, 1]`` =
-    spoof probability), matching DetectZoo's convention (higher score =
-    more likely AI-generated). This skips the per-speaker enrollment
-    required for SAMO similarity scoring, which isn't practical in a
-    zero-config detector.
+    Three scoring modes are supported (see module docstring for details):
+
+    * ``"samo"`` (default) — max cosine similarity of the 160-d embedding to
+      the first 20 one-hot basis vectors. Reproduces upstream
+      ``--scoring samo --val_sp 0 --one_hot`` (paper's similarity-scoring
+      protocol, zero-config fallback when no LA enrollment is provided).
+    * ``"ocsoftmax"`` — cosine similarity to a single one-hot attractor
+      (first component of the L2-normalized embedding).
+    * ``"fc"`` — softmax classification head; matches upstream
+      ``--scoring fc`` on the SAMO-pretrained model (~5 % EER baseline).
+
+    Call :meth:`enroll` with per-speaker bonafide audio to switch ``"samo"``
+    mode to speaker-aware scoring (upstream ``val_sp=1``, reproduces the
+    paper's 0.88 % EER on ASVspoof 2019 LA).
 
     Parameters
     ----------
     checkpoint_path : str or Path, optional
         Local ``.pt`` file. Defaults to auto-download from upstream GitHub.
+    scoring : str
+        One of ``"samo"`` (default), ``"ocsoftmax"``, ``"fc"``.
     threshold : float
         Score threshold for ``"ai"`` label. Default ``0.5``.
     device : str
@@ -602,12 +635,19 @@ class SAMODetector(BaseDetector):
         self,
         checkpoint_path: Optional[Union[str, Path]] = None,
         *,
+        scoring: str = "samo",
         threshold: float = 0.5,
         device: str = "cpu",
         cache_dir: Optional[Union[str, Path]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(threshold=threshold, device=device, **kwargs)
+
+        if scoring not in {"samo", "ocsoftmax", "fc"}:
+            raise ValueError(
+                f"scoring must be one of 'samo', 'ocsoftmax', 'fc' — got {scoring!r}"
+            )
+        self._scoring = scoring
 
         if checkpoint_path is not None:
             self._weight_path = Path(checkpoint_path).expanduser().resolve()
@@ -618,6 +658,11 @@ class SAMODetector(BaseDetector):
 
         self._model = self._load_checkpoint()
         self._model.to(self._device).eval()
+
+        # Default SAMO centers: first 20 one-hot basis vectors (upstream
+        # --one_hot fallback). Replaced in-place by ``enroll()`` for the
+        # speaker-aware paper protocol.
+        self._centers = torch.eye(_ENC_DIM)[:_NUM_CENTERS].to(self._device)
 
     def _load_checkpoint(self) -> nn.Module:
         """Load ``samo.pt`` — either a state-dict or a pickled full Module."""
@@ -668,6 +713,54 @@ class SAMODetector(BaseDetector):
         return _pad_or_trim(wav, _MAX_SAMPLES)
 
     @torch.no_grad()
+    def enroll(
+        self,
+        speaker_audio: dict,
+        *,
+        merge_with_onehot: bool = False,
+    ) -> None:
+        """Build speaker attractors from bonafide audio for paper-exact scoring.
+
+        Mirrors upstream ``update_embeds`` (``samo/main.py`` L635): for each
+        speaker, average L2-normalised embeddings of their bonafide samples.
+        The resulting attractors replace the default one-hot centers and are
+        used by ``scoring="samo"`` at inference time (upstream ``val_sp=1``).
+
+        Parameters
+        ----------
+        speaker_audio : dict[str, list]
+            ``{speaker_id: [audio1, audio2, ...]}``. Each entry can be a file
+            path, numpy array, or torch tensor (16 kHz mono).
+        merge_with_onehot : bool
+            If True, keep the original 20 one-hot centers alongside the
+            learned attractors (improves coverage on unseen speakers). Default
+            False — matches upstream paper setup.
+        """
+        if not speaker_audio:
+            raise ValueError("speaker_audio must contain at least one speaker")
+
+        attractors = []
+        for _spk_id, audio_list in speaker_audio.items():
+            if not audio_list:
+                continue
+            embeds = []
+            for audio in audio_list:
+                wav = self._normalize_input(audio).to(self._device).view(1, -1)
+                feats, _ = self._model(wav)
+                embeds.append(F.normalize(feats, p=2, dim=1))
+            spk_attr = torch.cat(embeds, dim=0).mean(dim=0, keepdim=True)
+            attractors.append(F.normalize(spk_attr, p=2, dim=1))
+
+        if not attractors:
+            raise ValueError("No audio provided for any speaker")
+
+        centers = torch.cat(attractors, dim=0)
+        if merge_with_onehot:
+            onehot = torch.eye(_ENC_DIM)[:_NUM_CENTERS].to(self._device)
+            centers = torch.cat([centers, onehot], dim=0)
+        self._centers = centers
+
+    @torch.no_grad()
     def predict(self, input_data: Any) -> DetectionResult:
         """Predict whether audio is AI-generated (spoofed).
 
@@ -679,16 +772,42 @@ class SAMODetector(BaseDetector):
         Returns
         -------
         DetectionResult
-            score=P(ai), label='ai'/'human', confidence in [0,1].
+            ``score=P(ai)`` in ``[0, 1]`` (higher = more likely AI),
+            label ``'ai'`` / ``'human'``.
         """
         wav = self._normalize_input(input_data).to(self._device)
         wav = wav.view(1, -1)
-        _, logits = self._model(wav)
+        feats, logits = self._model(wav)
         probs = torch.softmax(logits, dim=-1)
 
-        score_ai = float(probs[0, 1])
+        if self._scoring == "fc":
+            # Upstream: score = feat_outputs[:, 0] for samo-pretrained (bonafide
+            # likelihood). We expose the complementary spoof probability
+            # directly, which is rank-equivalent for EER.
+            score_ai = float(probs[0, 1])
+        else:
+            # Cosine-similarity scoring. Shared math:
+            #   w = F.normalize(centers, dim=1)
+            #   scores = F.normalize(feats) @ w.T  ->  [1, num_centers]
+            # For "samo": bonafide = max over centers (upstream SAMO.forward
+            #   with attractor=0 -> `maxscores`).
+            # For "ocsoftmax": bonafide = single-center dot product (first
+            #   one-hot direction; upstream OCSoftmax.forward).
+            feats_n = F.normalize(feats, p=2, dim=1)
+            if self._scoring == "samo":
+                w = F.normalize(self._centers, p=2, dim=1)
+                sims = feats_n @ w.transpose(0, 1)
+                bona_sim = float(sims.max(dim=1).values.item())
+            else:  # ocsoftmax
+                bona_sim = float(feats_n[0, 0].item())
+            # Map cosine similarity in [-1, 1] to AI score in [0, 1]:
+            # higher similarity -> more bonafide -> lower AI score.
+            score_ai = float((1.0 - bona_sim) / 2.0)
+            score_ai = max(0.0, min(1.0, score_ai))
+
         return self._make_result(
             score_ai,
+            scoring=self._scoring,
             score_bonafide=float(probs[0, 0]),
             score_spoof=float(probs[0, 1]),
             logit_bonafide=float(logits[0, 0]),
