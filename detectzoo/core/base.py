@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gc
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from typing import Any, List, Sequence, Union
@@ -81,6 +82,32 @@ class BaseDetector(ABC):
             if isinstance(attr, torch.nn.Module):
                 attr.to(self._device)
         return self
+
+    def unload(self) -> None:
+        """Release GPU memory held by this detector.
+
+        Walks the detector's instance attributes and, for every
+        :class:`torch.nn.Module` found, moves it to CPU and drops the
+        reference so the weights can be garbage-collected.  After
+        calling :meth:`unload`, the detector can still be used: the
+        lazy-loading properties (``model``, ``tokenizer`` and any
+        subclass-specific ones) will simply reload the weights on next
+        access.
+
+        Subclasses may override this to release additional state, but
+        should call ``super().unload()``.
+        """
+        for name in list(self.__dict__.keys()):
+            attr = self.__dict__[name]
+            if isinstance(attr, torch.nn.Module):
+                try:
+                    attr.to("cpu")
+                except Exception:
+                    pass
+                self.__dict__[name] = None
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
     # ------------------------------------------------------------------
     # Helpers
