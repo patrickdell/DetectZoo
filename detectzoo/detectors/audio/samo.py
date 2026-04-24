@@ -43,7 +43,7 @@ from detectzoo.core.base import BaseDetector, DetectionResult
 from detectzoo.core.registry import register_detector
 from detectzoo.datasets._download import download_file, get_cache_dir
 
-_CKPT_URL = "https://github.com/sivannavis/samo/raw/master/models/samo.pt"
+_CKPT_URL = "https://raw.githubusercontent.com/sivannavis/samo/main/models/samo.pt"
 _CKPT_NAME = "samo.pt"
 
 _SAMPLE_RATE = 16_000

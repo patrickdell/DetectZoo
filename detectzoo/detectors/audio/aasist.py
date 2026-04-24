@@ -491,14 +491,16 @@ class AASISTDetector(BaseDetector):
         logits = self._model(spec)                                   # [1, 2]
         probs  = torch.softmax(logits, dim=-1)                       # [1, 2]
 
-        # index 0 = bonafide/human, index 1 = spoof/ai
-        score_ai = float(probs[0, 1])
+        # AASIST training convention: index 0 = spoof/ai, index 1 = bonafide/human
+        # (see clovaai/aasist data_utils.py: `d_meta[key] = 1 if label == "bonafide" else 0`,
+        #  and main.py inference: `batch_score = batch_out[:, 1]` is the bonafide CM score)
+        score_ai = float(probs[0, 0])
 
         return self._make_result(
             score_ai,
-            score_bonafide=float(probs[0, 0]),
-            score_spoof=float(probs[0, 1]),
-            logit_bonafide=float(logits[0, 0]),
-            logit_spoof=float(logits[0, 1]),
+            score_bonafide=float(probs[0, 1]),
+            score_spoof=float(probs[0, 0]),
+            logit_bonafide=float(logits[0, 1]),
+            logit_spoof=float(logits[0, 0]),
             variant=self.variant,
         )

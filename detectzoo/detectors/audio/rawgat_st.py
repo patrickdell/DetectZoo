@@ -446,13 +446,13 @@ class RawGATSTDetector(BaseDetector):
         logits = self._model(wav)
         probs = torch.softmax(logits, dim=-1)
 
-        score_ai = float(probs[0, 1])
+        score_ai = float(probs[0, 0])
 
         return self._make_result(
             score_ai,
-            score_bonafide=float(probs[0, 0]),
-            score_spoof=float(probs[0, 1]),
-            logit_bonafide=float(logits[0, 0]),
-            logit_spoof=float(logits[0, 1]),
+            score_bonafide=float(probs[0, 1]),
+            score_spoof=float(probs[0, 0]),
+            logit_bonafide=float(logits[0, 1]),
+            logit_spoof=float(logits[0, 0]),
             fusion=self._fusion,
         )
