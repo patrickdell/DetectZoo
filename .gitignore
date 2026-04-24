@@ -64,3 +64,10 @@ data/
 
 # Temporarily excluded dataset modules
 # (none)
+
+# Local / throw-away scripts (smoke tests, diagnostics, scratch notebooks, etc.)
+# Commit-worthy scripts should not use these prefixes, or go in scripts/local/.
+scripts/smoke_*
+scripts/diag_*
+scripts/scratch_*
+scripts/local/
