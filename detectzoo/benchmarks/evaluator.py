@@ -87,7 +87,10 @@ class BenchmarkEvaluator:
     def run_and_print(self, detectors: Sequence[BaseDetector]) -> None:
         """Evaluate detectors and print a comparison table."""
         all_results = self.run(detectors)
-        header_keys = ["detector", "accuracy", "precision", "recall", "f1", "auroc"]
+        header_keys = [
+            "detector", "accuracy", "precision", "recall", "f1",
+            "tpr", "fpr", "roc_auc", "pr_auc",
+        ]
         header = " | ".join(f"{k:>18s}" for k in header_keys)
         print(header)
         print("-" * len(header))
