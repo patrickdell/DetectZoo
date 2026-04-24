@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import gc
 import json
 from pathlib import Path
 from typing import Any, Dict, List, Sequence, Union
 
+import torch
 from tqdm import tqdm
 
 from detectzoo.core.base import BaseDetector, DetectionResult
@@ -75,13 +77,34 @@ class BenchmarkEvaluator:
         detectors: Sequence[BaseDetector],
         *,
         save_scores: bool = False,
+        unload_between: bool = True,
     ) -> Dict[str, Dict[str, Any]]:
-        """Evaluate multiple detectors and return ``{name: metrics}``."""
+        """Evaluate multiple detectors and return ``{name: metrics}``.
+
+        Parameters
+        ----------
+        unload_between:
+            If ``True`` (default), each detector's :meth:`BaseDetector.unload`
+            is called after it finishes so its GPU weights are released
+            before the next detector starts loading.  Disable this only if
+            you intentionally want the models to stay resident (e.g. for
+            repeated calls on the same evaluator).
+        """
         items = self.dataset.load()
         results: Dict[str, Dict[str, Any]] = {}
         for det in detectors:
             logger.info("Evaluating '%s' …", det.name)
-            results[det.name] = self.evaluate_single(det, items=items, save_scores=save_scores)
+            try:
+                results[det.name] = self.evaluate_single(det, items=items, save_scores=save_scores)
+            finally:
+                if unload_between:
+                    try:
+                        det.unload()
+                    except Exception:
+                        logger.exception("Failed to unload detector '%s'", det.name)
+                    gc.collect()
+                    if torch.cuda.is_available():
+                        torch.cuda.empty_cache()
         return results
 
     def run_and_print(self, detectors: Sequence[BaseDetector]) -> None:
@@ -105,6 +128,7 @@ class BenchmarkEvaluator:
         output_path: Union[str, Path],
         *,
         save_scores: bool = False,
+        unload_between: bool = True,
     ) -> Dict[str, Dict[str, Any]]:
         """Evaluate detectors and save the results to a JSON file.
 
@@ -123,7 +147,7 @@ class BenchmarkEvaluator:
         -------
         The same ``{name: metrics}`` dictionary that :meth:`run` returns.
         """
-        all_results = self.run(detectors, save_scores=save_scores)
+        all_results = self.run(detectors, save_scores=save_scores, unload_between=unload_between)
 
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
