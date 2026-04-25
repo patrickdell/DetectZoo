@@ -114,13 +114,24 @@ def _classes(partitions: Optional[Sequence[str]]) -> Tuple[str, ...]:
 
 
 def _collect_test(data_root: Path, col: str, folder: str) -> List[DatasetItem]:
-    real, fake = data_root / folder / "0_real", data_root / folder / "1_fake"
-    meta = {"split": SPLIT_TEST, "partition": col, "folder": folder, "generator": folder}
+    partition_dir = data_root / folder
+    meta_base = {"split": SPLIT_TEST, "partition": col, "folder": folder, "generator": folder}
     out: List[DatasetItem] = []
-    for label, directory, source in ((0, real, "real"), (1, fake, "fake")):
-        for path in sorted(directory.rglob("*")):
-            if path.is_file() and path.suffix.lower() in _IMAGE_EXTS:
-                out.append(DatasetItem(data=str(path), label=label, metadata={**meta, "source": source}))
+
+    for real_dir in sorted(partition_dir.rglob("0_real")):
+        if not real_dir.is_dir():
+            continue
+        fake_dir = real_dir.parent / "1_fake"
+        if not fake_dir.is_dir():
+            continue
+
+        subfolder = real_dir.parent.name if real_dir.parent != partition_dir else None
+        meta = {**meta_base, **({"subfolder": subfolder} if subfolder else {})}
+        for label, directory, source in ((0, real_dir, "real"), (1, fake_dir, "fake")):
+            for path in sorted(directory.rglob("*")):
+                if path.is_file() and path.suffix.lower() in _IMAGE_EXTS:
+                    out.append(DatasetItem(data=str(path), label=label, metadata={**meta, "source": source}))
+
     return out
 
 
