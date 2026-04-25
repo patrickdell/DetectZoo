@@ -208,7 +208,7 @@ class _AIDEModel(nn.Module):
         self.fc = _Mlp(2048 + 256, 1024, 2)
 
         import open_clip
-        model, _, _ = open_clip.create_model_and_transforms("convnext_xxlarge", pretrained=None)
+        model, _, _ = open_clip.create_model_and_transforms("convnext_xxlarge", pretrained="laion2b_s34b_b82k_augreg_soup")
         trunk = model.visual.trunk
         trunk.head.global_pool = nn.Identity()
         trunk.head.flatten = nn.Identity()
