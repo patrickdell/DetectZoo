@@ -11,8 +11,9 @@ Code & weights
 - Pretrained classifier checkpoints (trained on ASVspoof 2021 DF, reported on
   In-The-Wild) are distributed via the author's Google Drive folder:
   https://drive.google.com/drive/folders/1YWMC64MW4HjGUX1fnBaMkMIGgAJde9Ch
-  The relevant file for this detector is ``whisper+mesonet/ckpt.pth`` (or the
-  equivalent inside ``all_models/`` for the vanilla Whisper-MesoNet variant).
+  The relevant file for this detector is ``all_models/whisper_mesonet/weights.pth``
+  (file id ``19LPAA1-nFkxlR6FztoWBaA_8vGwgXPiG``). The auto-download path
+  pulls *only* that single 31 MB file rather than the whole ~1 GB folder.
 
 Key paper numbers
 -----------------
@@ -50,11 +51,15 @@ from detectzoo.detectors.audio.whisper_mesonet.whisper_encoder import N_SAMPLES,
 
 _LOGGER = get_logger(__name__)
 
-_CKPT_NAME = "whisper_mesonet_ckpt.pth"
+_CKPT_NAME = "whisper_mesonet_weights.pth"
 # Google-Drive folder that hosts the paper's pretrained checkpoints.
 _GDRIVE_FOLDER = (
     "https://drive.google.com/drive/folders/1YWMC64MW4HjGUX1fnBaMkMIGgAJde9Ch"
 )
+# Single-file id of `all_models/whisper_mesonet/weights.pth` inside that folder.
+# Captured from the upstream GDrive listing — pulling just this one file avoids
+# the ~1 GB / rate-limit-prone full-folder download.
+_GDRIVE_FILE_ID = "19LPAA1-nFkxlR6FztoWBaA_8vGwgXPiG"
 
 
 # ---------------------------------------------------------------------------
@@ -96,35 +101,54 @@ def _pad_or_trim(wav: torch.Tensor, length: int) -> torch.Tensor:
     return wav.repeat(num_repeats)[:length]
 
 
-def _try_gdown_folder(dest_dir: Path) -> Optional[Path]:
-    """Best-effort download of the upstream GDrive folder via ``gdown``.
+def _find_legacy_cached_weights(cache_root: Path) -> Optional[Path]:
+    """Return a previously-downloaded plain ``whisper_mesonet/weights.pth``
+    under ``cache_root`` (e.g. left over from an older DetectZoo full-folder
+    download).
 
-    Returns the path to the first ``ckpt.pth`` found under ``dest_dir``
-    after the download, or ``None`` if gdown is unavailable or the download
-    fails.
+    Only the *exact* folder name ``whisper_mesonet`` is matched — sibling
+    variants like ``whisper_mesonet_finetuned``, ``whisper_lfcc_mesonet``,
+    ``whisper_mfcc_mesonet`` or ``whisper+mesonet`` use a different
+    ``input_channels`` and would fail to load.
+    """
+    for hit in cache_root.rglob("weights.pth"):
+        if hit.parent.name == "whisper_mesonet":
+            return hit
+    return None
+
+
+def _try_gdown_single_file(dest: Path) -> Optional[Path]:
+    """Best-effort download of the single upstream `weights.pth` via ``gdown``.
+
+    Returns ``dest`` on success, ``None`` if ``gdown`` is unavailable or the
+    download fails. Uses the file-id form so it never has to enumerate the
+    surrounding ~1 GB folder.
     """
     try:
         import gdown  # type: ignore
     except ImportError:
+        _LOGGER.warning(
+            "`gdown` is not installed; cannot auto-download Whisper-MesoNet "
+            "weights. Install with `pip install detectzoo[whisper_mesonet]`."
+        )
         return None
-    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     try:
-        _LOGGER.info("Attempting `gdown` folder download from %s", _GDRIVE_FOLDER)
-        gdown.download_folder(
-            url=_GDRIVE_FOLDER,
-            output=str(dest_dir),
+        _LOGGER.info(
+            "Downloading Whisper-MesoNet weights from Google Drive "
+            "(file id %s) to %s",
+            _GDRIVE_FILE_ID,
+            dest,
+        )
+        gdown.download(
+            id=_GDRIVE_FILE_ID,
+            output=str(dest),
             quiet=False,
-            use_cookies=False,
         )
     except Exception as e:
-        _LOGGER.warning("gdown folder download failed: %s", e)
+        _LOGGER.warning("gdown single-file download failed: %s", e)
         return None
-    # Prefer the pure whisper+mesonet variant over the fine-tuned w/MFCC one.
-    candidates = sorted(dest_dir.rglob("ckpt.pth"))
-    for c in candidates:
-        if "whisper" in str(c).lower() and "meso" in str(c).lower():
-            return c
-    return candidates[0] if candidates else None
+    return dest if dest.is_file() else None
 
 
 # ---------------------------------------------------------------------------
@@ -138,16 +162,19 @@ class WhisperMesoNetDetector(BaseDetector):
     Parameters
     ----------
     checkpoint_path : str or Path, optional
-        Path to a ``ckpt.pth`` saved by the upstream ``train_models.py``
+        Path to a ``weights.pth`` saved by the upstream ``train_models.py``
         (a full ``WhisperMesoNet`` ``state_dict``). When omitted the detector
         tries, in order:
 
-        1. The cached copy under ``<cache_dir>/whisper_mesonet/ckpt.pth``.
-        2. An automatic download of the upstream Google Drive folder via
-           ``gdown`` (install with ``pip install detectzoo[whisper_mesonet]``).
+        1. The cached copy under ``<cache_dir>/whisper_mesonet_weights.pth``.
+        2. Any pre-existing ``whisper_mesonet/weights.pth`` left under
+           ``<cache_dir>`` by an older DetectZoo full-folder download.
+        3. A single-file ``gdown`` pull of the upstream
+           ``all_models/whisper_mesonet/weights.pth`` (install with
+           ``pip install detectzoo[whisper_mesonet]``).
 
-        If both fall through, a :class:`FileNotFoundError` is raised with a
-        message pointing at the upstream Google Drive folder.
+        If all three fall through, a :class:`FileNotFoundError` is raised
+        with a message pointing at the upstream Google Drive folder.
     fc1_dim : int
         Bottleneck size of MesoInception-4 (``fc1``). Default ``1024`` matches
         the published config.
@@ -207,8 +234,15 @@ class WhisperMesoNetDetector(BaseDetector):
         if cached.is_file():
             return cached
 
-        # Try gdown auto-download of the upstream folder.
-        downloaded = _try_gdown_folder(cache / "upstream_gdrive")
+        # Reuse any pre-existing weights left over from older DetectZoo
+        # versions (which downloaded the whole upstream folder).
+        legacy = _find_legacy_cached_weights(cache)
+        if legacy is not None and legacy.is_file():
+            _LOGGER.info("Reusing pre-existing Whisper-MesoNet weights at %s", legacy)
+            return legacy
+
+        # Single-file gdown of the published `weights.pth`.
+        downloaded = _try_gdown_single_file(cached)
         if downloaded is not None and downloaded.is_file():
             return downloaded
 
@@ -216,12 +250,12 @@ class WhisperMesoNetDetector(BaseDetector):
             "Whisper-MesoNet pretrained weights were not found. "
             "The paper's checkpoints are hosted only on Google Drive:\n  "
             f"{_GDRIVE_FOLDER}\n"
-            "Download `whisper+mesonet/ckpt.pth` (or any `ckpt.pth` inside "
-            "`all_models/`) and either:\n"
+            "Download `all_models/whisper_mesonet/weights.pth` and either:\n"
             f"  - place it at {cached}, or\n"
             "  - pass it via `WhisperMesoNetDetector(checkpoint_path=...)`,\n"
             "  - or install `pip install detectzoo[whisper_mesonet]` so gdown "
-            "can auto-download the folder."
+            "can auto-download the file (id "
+            f"{_GDRIVE_FILE_ID})."
         )
 
     def _load_weights(self) -> None:
