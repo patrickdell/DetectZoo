@@ -50,15 +50,6 @@ audio = [
     "librosa>=0.10",
     "soundfile>=0.12",
 ]
-# Fairseq + Mamba stack for XLSR-Mamba (heavy; often needs CUDA / Linux for mamba-ssm)
-xlsr_mamba = [
-    "detectzoo[audio]",
-    "huggingface_hub>=0.20",
-    "safetensors>=0.4",
-    "mamba-ssm>=1.1.0",
-    "causal-conv1d>=1.1.0",
-    "fairseq>=0.12.0",
-]
 # Whisper-MesoNet: only needs an optional `gdown` to auto-pull the author's
 # Google Drive checkpoint folder. Users can also download the file manually.
 whisper_mesonet = [
@@ -97,10 +88,6 @@ target-version = "py39"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W"]
-
-[tool.ruff.lint.per-file-ignores]
-# Vendored from XLSR-Mamba upstream; keep long lines to ease diffing against source.
-"detectzoo/detectors/audio/xlsr_mamba/mamba_blocks.py" = ["E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

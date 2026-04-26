@@ -6,7 +6,6 @@ from detectzoo.detectors.audio.rawnet2 import RawNet2Detector
 from detectzoo.detectors.audio.restssdnet import ResTSSDNetDetector
 from detectzoo.detectors.audio.samo import SAMODetector
 from detectzoo.detectors.audio.whisper_mesonet.detector import WhisperMesoNetDetector
-from detectzoo.detectors.audio.xlsr_mamba.detector import XLSRMambaDetector
 
 __all__ = [
     "AASISTDetector",
@@ -15,5 +14,4 @@ __all__ = [
     "ResTSSDNetDetector",
     "SAMODetector",
     "WhisperMesoNetDetector",
-    "XLSRMambaDetector",
 ]

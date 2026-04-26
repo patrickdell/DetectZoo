@@ -1,6 +1,4 @@
-# DetectZoo — flat requirements for a full install across all modalities
-# EXCEPT the XLSR-Mamba heavy stack (fairseq + mamba-ssm + causal-conv1d).
-# For that, see `pip install detectzoo[xlsr_mamba]` in pyproject.toml.
+# DetectZoo — flat requirements for a full install across all modalities.
 
 # --- core ---------------------------------------------------------------
 numpy>=1.24
