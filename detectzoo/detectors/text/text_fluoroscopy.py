@@ -45,14 +45,14 @@ class TextFluoroscopyDetector(BaseTextDetector):
     and has an ``lm_head`` (or equivalent) projection layer.
 
     Parameters:
-        model_name: HuggingFace causal LM (default ``"gpt2"``).
+        model_name: HuggingFace causal LM (default ``"Alibaba-NLP/gte-Qwen1.5-7B-instruct"``).
         threshold: Decision boundary.
         device: ``"cpu"`` or ``"cuda"``.
     """
 
     def __init__(
         self,
-        model_name: str = "gpt2",
+        model_name: str = "Alibaba-NLP/gte-Qwen1.5-7B-instruct",
         threshold: float = 0.0,
         device: str = "cpu",
         **kwargs: Any,
