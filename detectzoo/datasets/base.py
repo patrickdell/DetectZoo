@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -54,9 +55,39 @@ class BaseDataset(ABC):
             return self._items
         items = self._load_all()
         if self.max_samples is not None:
-            items = items[: self.max_samples]
+            items = self._balance_and_truncate(items, self.max_samples)
         self._items = items
         return self._items
+
+    @staticmethod
+    def _balance_and_truncate(
+        items: List[DatasetItem], max_samples: int
+    ) -> List[DatasetItem]:
+        """Pick ``max_samples`` items balanced across labels 0 and 1.
+
+        Takes ``max_samples // 2`` from each class. If one class is short,
+        the remaining slots are filled from the other class. The result
+        is shuffled before being returned.
+        """
+        class_0 = [it for it in items if it.label == 0]
+        class_1 = [it for it in items if it.label == 1]
+
+        half = max_samples // 2
+        take_0 = min(half, len(class_0))
+        take_1 = min(half, len(class_1))
+
+        remaining = max_samples - take_0 - take_1
+        if remaining > 0:
+            if take_0 < half:
+                extra = min(remaining, len(class_1) - take_1)
+                take_1 += extra
+            elif take_1 < half:
+                extra = min(remaining, len(class_0) - take_0)
+                take_0 += extra
+
+        selected = class_0[:take_0] + class_1[:take_1]
+        random.shuffle(selected)
+        return selected
 
     def __iter__(self) -> Iterator[DatasetItem]:
         return iter(self.load())
