@@ -28,14 +28,31 @@ _ZENODO_ZIP = (
 _WAV_EXT = frozenset({".wav", ".WAV"})
 
 
-def _parse_generator_tag(stem: str) -> str | None:
-    """Return WF* tag from stems like ``LJ001-0001_WF3`` or ``None``."""
-    if "_" not in stem:
-        return None
-    suffix = stem.rsplit("_", 1)[-1]
-    u = suffix.upper()
-    if u.startswith("WF") and u[2:].isdigit():
-        return u
+def _parse_generator_tag(path: Path) -> str | None:
+    """Return a vocoder/generator tag for a WaveFake fake .wav file, else ``None``.
+
+    Two naming conventions are recognised, in order:
+
+    1. **Zenodo ``_gen`` layout** (``generated_audio.zip``): files are named
+       ``<utt_id>_gen.wav`` and grouped one folder per vocoder
+       (``ljspeech_melgan/LJ001-0001_gen.wav``,
+       ``jsut_multi_band_melgan/BASIC5000_0001_gen.wav``, …). The tag is
+       derived from the **parent folder name**, upper-cased
+       (``LJSPEECH_MELGAN``).
+
+    2. **Legacy ``_WF*`` suffix** used by some derivatives, where the stem
+       ends with ``_WF1``, ``_WF7``, etc. The tag is the suffix itself.
+    """
+    stem = path.stem
+    if "_" in stem:
+        suffix = stem.rsplit("_", 1)[-1]
+        u = suffix.upper()
+        if u.startswith("WF") and u[2:].isdigit():
+            return u
+    if stem.endswith("_gen") or stem.lower().endswith("_gen"):
+        # Use the parent vocoder folder as the generator identifier.
+        parent = path.parent.name
+        return parent.upper() if parent else "GEN"
     return None
 
 
@@ -70,20 +87,31 @@ def _collect_wavs(
     *,
     label: int,
     class_name: str,
-    require_wf_tag: bool,
+    require_fake_tag: bool,
     generators: frozenset[str] | None,
 ) -> List[DatasetItem]:
+    """Collect WAV files under *root*.
+
+    When ``require_fake_tag`` is True, only files identified as WaveFake
+    fakes (either ``*_gen.wav`` under a vocoder folder, or legacy
+    ``*_WF<N>.wav``) are returned.
+    """
     items: List[DatasetItem] = []
     for path in sorted(root.rglob("*")):
         if not path.is_file() or path.suffix not in _WAV_EXT:
             continue
         stem = path.stem
-        gen = _parse_generator_tag(stem)
-        if require_wf_tag and gen is None:
+        gen = _parse_generator_tag(path)
+        if require_fake_tag and gen is None:
             continue
         if generators is not None and gen is not None and gen not in generators:
             continue
+        # Prefer per-file corpus inference, but fall back to the path-derived
+        # hint when the stem alone is ambiguous (e.g. ``_gen``-named JSUT
+        # files inside ``jsut_*`` vocoder folders).
         corpus = _infer_corpus_from_stem(stem)
+        if corpus == "unknown":
+            corpus = _infer_corpus_from_path(path)
         meta = {
             "modality": "audio",
             "class": class_name,
@@ -198,12 +226,17 @@ class WaveFakeDataset(BaseDataset):
             gen_root,
             label=1,
             class_name="fake",
-            require_wf_tag=True,
+            require_fake_tag=True,
             generators=self.generators,
         )
         if not fake_items:
             raise FileNotFoundError(
-                f"WaveFake: no generated WAVs with _WF* suffix under {gen_root}"
+                f"WaveFake: no generated WAVs with `_gen` or `_WF*` suffix "
+                f"under {gen_root}. Expected the canonical Zenodo layout "
+                "(one folder per vocoder, files named `<utt>_gen.wav`) or "
+                "the legacy `_WF<N>` naming. If your `generators` filter is "
+                f"set ({sorted(self.generators) if self.generators else None}), "
+                "verify it matches the parent folder names (case-insensitive)."
             )
 
         items: List[DatasetItem] = list(fake_items)

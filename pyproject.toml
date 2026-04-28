@@ -56,6 +56,15 @@ whisper_mesonet = [
     "detectzoo[audio]",
     "gdown>=4.7",
 ]
+# AST-ASVspoof: Audio Spectrogram Transformer fine-tuned for synthetic-voice
+# detection. Weights are auto-downloaded from HuggingFace Hub via the standard
+# `transformers` cache (no Google Drive, no manual steps).
+ast_asvspoof = [
+    "detectzoo[audio]",
+    "transformers>=4.30",
+    "huggingface_hub>=0.20",
+    "accelerate>=0.20",
+]
 eval = [
     "scikit-learn>=1.2",
     "matplotlib>=3.7",

@@ -21,25 +21,35 @@ class names (``Model``, ``Residual_block``, ``GraphAttentionLayer``,
 Scoring
 -------
 The SAMO paper reports **EER ~0.88 %** on ASVspoof 2019 LA using
-**similarity scoring** (max cosine similarity between the 160-d embedding and a
-set of speaker attractors), not the classification head. The plain
-classification head on the same checkpoint is expected to yield **~5 % EER**
-(upstream ``main.py`` falls back to ``feat_outputs[:, 0]`` only for the ``fc``
-baseline).
+**speaker-aware similarity scoring** — at test time the model is conditioned
+on per-trial speaker attractors built from the LA *ASV enrollment* protocols
+(``ASVspoof2019.LA.asv.eval.{female,male}.trn.txt``) and bonafide enrollment
+audio. The released ``samo.pt`` ships only the AASIST-style encoder; the
+SAMO loss head's ``center`` parameter is **not** in the checkpoint, so this
+speaker-aware scoring **cannot be reproduced without enrolment data**.
 
-This wrapper supports three scoring modes:
+This wrapper exposes two scoring modes, each a faithful port of upstream
+``samo/main.py::test``:
 
-* ``"samo"`` (default) — upstream ``--one_hot`` fallback: use
-  ``torch.eye(160)[:20]`` as centers, score = ``max(normalize(embed)[:, :20])``.
-  Zero-config; reproduces the SAMO paper's similarity-scoring protocol without
-  needing the LA enrollment partition.
-* ``"ocsoftmax"`` — OC-Softmax direction: score = ``normalize(embed)[:, 0]``
-  (cosine similarity to a single one-hot attractor).
-* ``"fc"`` — classification head (``probs[:, 1]`` as the spoof probability);
-  matches ``feat_outputs[:, 0]`` upstream ``fc`` scoring.
+* ``"fc"`` (default) — classification-head scoring. Mirrors upstream
+  ``--scoring fc`` on the SAMO-pretrained checkpoint
+  (``score = feat_outputs[:, 0]``). Rank-equivalent to ``probs[:, 1]``,
+  which we expose as ``score_ai`` to match DetectZoo's convention. **This
+  is the only mode that is well-defined for the public ``samo.pt`` without
+  external enrollment data; expect ~5 % EER on ASVspoof 2019 LA.**
+* ``"samo"`` — multi-center cosine scoring. ``score = max_k cos(embed, c_k)``
+  where ``c_k`` are 20 attractor centers. Without :meth:`enroll`, the
+  centers default to ``torch.eye(160)[:20]`` (upstream ``--one_hot``
+  fallback): this is a *degenerate* baseline whose EER is much worse than
+  ``fc`` because the released checkpoint's bonafide subspace is not
+  axis-aligned for unseen speakers. Call :meth:`SAMODetector.enroll` with
+  per-speaker bonafide audio to install proper attractors and recover the
+  paper's protocol (upstream ``--val_sp 1``).
 
-Call :meth:`SAMODetector.enroll` with a mapping ``{speaker_id: [audio, ...]}``
-to switch to speaker-aware scoring (upstream ``val_sp=1``, paper protocol).
+The legacy ``"ocsoftmax"`` mode was removed: the released ``samo.pt`` was
+trained with the SAMO loss, not OCSoftmax, so projecting onto a single
+arbitrary direction (``feats_n[:, 0]``) has no theoretical justification and
+produced noisy / misleading scores.
 """
 
 from __future__ import annotations
@@ -48,6 +58,7 @@ import math
 import random
 import sys
 import types
+import warnings
 from pathlib import Path
 from typing import Any, Optional, Tuple, Union
 
@@ -600,27 +611,26 @@ class SAMODetector(BaseDetector):
     one-class loss. The released ``samo.pt`` is a pickled ``nn.Module``
     and is loaded via a lightweight ``aasist.AASIST`` import shim.
 
-    Three scoring modes are supported (see module docstring for details):
+    Two scoring modes are supported (see module docstring for the rationale
+    behind the default):
 
-    * ``"samo"`` (default) — max cosine similarity of the 160-d embedding to
-      the first 20 one-hot basis vectors. Reproduces upstream
-      ``--scoring samo --val_sp 0 --one_hot`` (paper's similarity-scoring
-      protocol, zero-config fallback when no LA enrollment is provided).
-    * ``"ocsoftmax"`` — cosine similarity to a single one-hot attractor
-      (first component of the L2-normalized embedding).
-    * ``"fc"`` — softmax classification head; matches upstream
-      ``--scoring fc`` on the SAMO-pretrained model (~5 % EER baseline).
-
-    Call :meth:`enroll` with per-speaker bonafide audio to switch ``"samo"``
-    mode to speaker-aware scoring (upstream ``val_sp=1``, reproduces the
-    paper's 0.88 % EER on ASVspoof 2019 LA).
+    * ``"fc"`` (default) — softmax classification head, ``score_ai =
+      probs[:, 1]``. Mirrors upstream ``--scoring fc`` on the SAMO-pretrained
+      model (~5 % EER on ASVspoof 2019 LA). **The only mode that is
+      well-defined for the public ``samo.pt`` without external enrollment.**
+    * ``"samo"`` — max cosine similarity of the 160-d embedding to a set of
+      attractor centers. Without :meth:`enroll`, falls back to upstream's
+      ``--one_hot`` baseline (degenerate; expect very high EER). Call
+      :meth:`enroll` with per-speaker bonafide audio to install proper
+      attractors and reproduce the paper's ``--val_sp 1`` protocol
+      (~0.88 % EER).
 
     Parameters
     ----------
     checkpoint_path : str or Path, optional
         Local ``.pt`` file. Defaults to auto-download from upstream GitHub.
     scoring : str
-        One of ``"samo"`` (default), ``"ocsoftmax"``, ``"fc"``.
+        One of ``"fc"`` (default) or ``"samo"``.
     threshold : float
         Score threshold for ``"ai"`` label. Default ``0.5``.
     device : str
@@ -635,7 +645,7 @@ class SAMODetector(BaseDetector):
         self,
         checkpoint_path: Optional[Union[str, Path]] = None,
         *,
-        scoring: str = "samo",
+        scoring: str = "fc",
         threshold: float = 0.5,
         device: str = "cpu",
         cache_dir: Optional[Union[str, Path]] = None,
@@ -643,9 +653,11 @@ class SAMODetector(BaseDetector):
     ) -> None:
         super().__init__(threshold=threshold, device=device, **kwargs)
 
-        if scoring not in {"samo", "ocsoftmax", "fc"}:
+        if scoring not in {"samo", "fc"}:
             raise ValueError(
-                f"scoring must be one of 'samo', 'ocsoftmax', 'fc' — got {scoring!r}"
+                f"scoring must be one of 'fc', 'samo' — got {scoring!r}. "
+                "(The legacy 'ocsoftmax' mode was removed: it is not "
+                "applicable to the SAMO-trained release checkpoint.)"
             )
         self._scoring = scoring
 
@@ -660,9 +672,11 @@ class SAMODetector(BaseDetector):
         self._model.to(self._device).eval()
 
         # Default SAMO centers: first 20 one-hot basis vectors (upstream
-        # --one_hot fallback). Replaced in-place by ``enroll()`` for the
-        # speaker-aware paper protocol.
+        # --one_hot fallback). This is a degenerate baseline; ``enroll()``
+        # replaces it with per-speaker attractors for the paper protocol.
         self._centers = torch.eye(_ENC_DIM)[:_NUM_CENTERS].to(self._device)
+        self._enrolled = False
+        self._warned_unenrolled_samo = False
 
     def _load_checkpoint(self) -> nn.Module:
         """Load ``samo.pt`` — either a state-dict or a pickled full Module."""
@@ -759,6 +773,7 @@ class SAMODetector(BaseDetector):
             onehot = torch.eye(_ENC_DIM)[:_NUM_CENTERS].to(self._device)
             centers = torch.cat([centers, onehot], dim=0)
         self._centers = centers
+        self._enrolled = True
 
     @torch.no_grad()
     def predict(self, input_data: Any) -> DetectionResult:
@@ -786,20 +801,27 @@ class SAMODetector(BaseDetector):
             # directly, which is rank-equivalent for EER.
             score_ai = float(probs[0, 1])
         else:
-            # Cosine-similarity scoring. Shared math:
+            # Cosine-similarity scoring (upstream SAMO.forward, attractor=0):
             #   w = F.normalize(centers, dim=1)
             #   scores = F.normalize(feats) @ w.T  ->  [1, num_centers]
-            # For "samo": bonafide = max over centers (upstream SAMO.forward
-            #   with attractor=0 -> `maxscores`).
-            # For "ocsoftmax": bonafide = single-center dot product (first
-            #   one-hot direction; upstream OCSoftmax.forward).
+            #   bona_sim = max over centers (upstream `maxscores`)
+            if not self._enrolled and not self._warned_unenrolled_samo:
+                warnings.warn(
+                    "SAMODetector(scoring='samo') is using one-hot fallback "
+                    "centers (upstream `--one_hot`); EER will be much worse "
+                    "than the paper's 0.88%. Either call `enroll(...)` with "
+                    "per-speaker bonafide audio to install real attractors, "
+                    "or use `scoring='fc'` for the ~5% EER classification "
+                    "baseline.",
+                    RuntimeWarning,
+                    stacklevel=2,
+                )
+                self._warned_unenrolled_samo = True
+
             feats_n = F.normalize(feats, p=2, dim=1)
-            if self._scoring == "samo":
-                w = F.normalize(self._centers, p=2, dim=1)
-                sims = feats_n @ w.transpose(0, 1)
-                bona_sim = float(sims.max(dim=1).values.item())
-            else:  # ocsoftmax
-                bona_sim = float(feats_n[0, 0].item())
+            w = F.normalize(self._centers, p=2, dim=1)
+            sims = feats_n @ w.transpose(0, 1)
+            bona_sim = float(sims.max(dim=1).values.item())
             # Map cosine similarity in [-1, 1] to AI score in [0, 1]:
             # higher similarity -> more bonafide -> lower AI score.
             score_ai = float((1.0 - bona_sim) / 2.0)

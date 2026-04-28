@@ -235,6 +235,10 @@ def _load_preprocessed(
         )
 
     want_splits: Tuple[str, ...] = ("train", "val", "test") if split == "all" else (split,)
+    # Track per-split class counts so we can raise a clear error if a
+    # particular split is missing one of the two classes (e.g. the FoR
+    # `norm` training split, where the `fake/` folder is shipped empty).
+    per_split_counts: dict[str, dict[str, int]] = {}
     for sp in want_splits:
         try:
             split_dir = _pick_split_child(parent, sp)
@@ -246,6 +250,7 @@ def _load_preprocessed(
             raise FileNotFoundError(
                 f"FoR: no real/fake class folders under {split_dir}. Subdirectories: {names}"
             )
+        sp_counts = {"real": 0, "fake": 0}
         for dir_path, label, role in pairs:
             meta = {
                 "split": sp,
@@ -253,13 +258,43 @@ def _load_preprocessed(
                 "modality": "audio",
                 "class": role,
             }
-            items.extend(_collect_audio_files(dir_path, label, metadata=meta))
+            collected = _collect_audio_files(dir_path, label, metadata=meta)
+            sp_counts[role] += len(collected)
+            items.extend(collected)
+        per_split_counts[sp] = sp_counts
 
     if not items:
         raise FileNotFoundError(
             f"FoR ({variant_key}): no audio found for split={split!r} under {parent}. "
             "Check that Training/Validation/Testing (or similar) folders exist."
         )
+
+    # Single-split request must yield both classes; otherwise the user
+    # would get a one-class dataset and binary metrics (EER/AUC/F1) would
+    # silently degenerate. The FoR `norm` *training* split is the known
+    # offender: its `fake/` folder ships empty.
+    if split != "all":
+        c = per_split_counts.get(split, {"real": 0, "fake": 0})
+        empty = [role for role, n in c.items() if n == 0]
+        if empty:
+            avail = {
+                sp: cs for sp, cs in per_split_counts.items()
+                if all(v > 0 for v in cs.values())
+            }
+            hint = (
+                f" Try `split={next(iter(avail))!r}` instead — that split "
+                f"has both classes ({avail[next(iter(avail))]})."
+                if avail
+                else " No other split has both classes either; the local "
+                "extraction is incomplete."
+            )
+            raise RuntimeError(
+                f"FoR ({variant_key}, split={split!r}): the {empty!r} class "
+                f"folder is empty (counts: real={c['real']}, fake={c['fake']}). "
+                "This is a known issue with the FoR `norm` *training* split "
+                "where the `fake/` directory ships empty in the upstream "
+                f"tarball.{hint}"
+            )
     return items
 
 

@@ -71,19 +71,48 @@ def _parse_protocol_line(line: str) -> tuple[str, str, str, str] | None:
 
 
 def _find_track_root(user_root: Path, track: str) -> Path:
-    """Resolve directory that contains ``ASVspoof2019_{track}_train/flac`` and protocols."""
-    u = user_root.resolve()
+    """Resolve the directory that contains the per-partition flac trees and the
+    ``ASVspoof2019_{track}_cm_protocols`` folder.
+
+    Anchoring on the **protocols** directory (rather than on the train flac
+    tree) lets users load eval-only or dev-only extracts — the train split
+    is large (~7 GB compressed) and is often skipped on disk-constrained
+    hosts.
+    """
+    u = user_root.expanduser().resolve()
+    proto_leaf = f"ASVspoof2019_{track}_cm_protocols"
     train_leaf = f"ASVspoof2019_{track}_train"
-    if u.name == train_leaf:
+    dev_leaf = f"ASVspoof2019_{track}_dev"
+    eval_leaf = f"ASVspoof2019_{track}_eval"
+
+    def _looks_like_track_root(d: Path) -> bool:
+        if (d / proto_leaf).is_dir():
+            return True
+        # Tolerate extracts that contain only flac dirs (no protocols).
+        return any(
+            (d / leaf / "flac").is_dir()
+            for leaf in (train_leaf, dev_leaf, eval_leaf)
+        )
+
+    # User pointed straight at one of the partition leaves.
+    if u.name in {train_leaf, dev_leaf, eval_leaf}:
         return u.parent
-    if (u / train_leaf / "flac").is_dir():
+
+    if _looks_like_track_root(u):
         return u
+
+    # User pointed at the dataset root (parent of LA / PA).
     for sub in (u / track, u / track.lower()):
-        if (sub / train_leaf / "flac").is_dir():
+        if _looks_like_track_root(sub):
             return sub
+
     raise FileNotFoundError(
-        f"ASVspoof 2019 ({track}): could not find '{train_leaf}/flac' under {user_root}. "
-        "Point `path` at the track folder (e.g. .../LA) or the dataset root that contains it."
+        f"ASVspoof 2019 ({track}): could not locate a track root under "
+        f"{user_root!s} (expanded to {u}). Expected to find either "
+        f"`{proto_leaf}/` or one of "
+        f"`{train_leaf}/flac`, `{dev_leaf}/flac`, `{eval_leaf}/flac`. "
+        f"Point `path` at the track directory (e.g. .../{track}) or the "
+        "dataset root that contains it."
     )
 
 
@@ -238,7 +267,8 @@ class ASVspoof2019Dataset(BaseDataset):
         max_samples: int | None = None,
     ) -> None:
         super().__init__(max_samples=max_samples)
-        self.path = Path(path)
+        # Expand `~/...` for the common case of pointing at a home-dir extract.
+        self.path = Path(path).expanduser()
         self.track = _coerce_track(track)
         self.partition = _coerce_partition(partition)
         self.skip_missing = skip_missing
