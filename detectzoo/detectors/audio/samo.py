@@ -637,6 +637,15 @@ class SAMODetector(BaseDetector):
         ``"cpu"`` or ``"cuda"``.
     cache_dir : str or Path, optional
         Override download cache root.
+    asv_path : str or Path, optional
+        Root of the ASVspoof 2019 LA dataset. When provided, the detector
+        reads the female / male ASV enrolment protocols
+        (``ASVspoof2019_LA_asv_protocols/ASVspoof2019.LA.asv.eval.{female,male}.trn.txt``),
+        groups the referenced bonafide ``.flac`` files (under
+        ``ASVspoof2019_LA_eval/flac/``) by speaker, calls :meth:`enroll`
+        to install per-speaker attractors, and switches scoring to
+        ``"samo"`` — reproducing the paper's ``--val_sp 1`` protocol
+        (~0.88 % EER on ASVspoof 2019 LA).
     """
 
     modality = "audio"
@@ -649,6 +658,7 @@ class SAMODetector(BaseDetector):
         threshold: float = 0.5,
         device: str = "cpu",
         cache_dir: Optional[Union[str, Path]] = None,
+        asv_path: Optional[Union[str, Path]] = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(threshold=threshold, device=device, **kwargs)
@@ -677,6 +687,60 @@ class SAMODetector(BaseDetector):
         self._centers = torch.eye(_ENC_DIM)[:_NUM_CENTERS].to(self._device)
         self._enrolled = False
         self._warned_unenrolled_samo = False
+
+        if asv_path is not None:
+            speaker_audio = self._collect_asvspoof_enrollment(Path(asv_path))
+            self.enroll(speaker_audio)
+            self._scoring = "samo"
+
+    @staticmethod
+    def _collect_asvspoof_enrollment(
+        asv_path: Path,
+    ) -> dict:
+        """Build ``{speaker_id: [flac_path, ...]}`` from ASVspoof 2019 LA protocols.
+
+        Reads the female and male ``*.asv.eval.*.trn.txt`` enrolment protocols
+        under ``ASVspoof2019_LA_asv_protocols/`` and resolves each referenced
+        utterance to its bonafide ``.flac`` under ``ASVspoof2019_LA_eval/flac/``.
+        """
+        asv_path = Path(asv_path).expanduser().resolve()
+        protocol_dir = asv_path / "ASVspoof2019_LA_asv_protocols"
+        flac_dir = asv_path / "ASVspoof2019_LA_eval" / "flac"
+
+        protocols = [
+            protocol_dir / "ASVspoof2019.LA.asv.eval.female.trn.txt",
+            protocol_dir / "ASVspoof2019.LA.asv.eval.male.trn.txt",
+        ]
+
+        speaker_audio: dict[str, list[Path]] = {}
+        for protocol in protocols:
+            if not protocol.is_file():
+                raise FileNotFoundError(
+                    f"ASVspoof enrolment protocol not found: {protocol}"
+                )
+            with open(protocol, "r", encoding="utf-8") as fh:
+                for raw_line in fh:
+                    line = raw_line.strip()
+                    if not line:
+                        continue
+                    parts = line.split()
+                    if len(parts) < 2:
+                        continue
+                    spk_id, filename = parts[0], parts[1]
+                    # Some protocol variants pack comma-separated filenames
+                    # into the second column ("LA_E_xxx,LA_E_yyy,...").
+                    for fname in filename.split(","):
+                        fname = fname.strip()
+                        if not fname:
+                            continue
+                        flac_path = flac_dir / f"{fname}.flac"
+                        speaker_audio.setdefault(spk_id, []).append(flac_path)
+
+        if not speaker_audio:
+            raise RuntimeError(
+                f"No enrolment utterances found under {protocol_dir}"
+            )
+        return speaker_audio
 
     def _load_checkpoint(self) -> nn.Module:
         """Load ``samo.pt`` — either a state-dict or a pickled full Module."""
