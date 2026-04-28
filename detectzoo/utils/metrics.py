@@ -1,7 +1,7 @@
 """Evaluation metrics for detection tasks.
 
 Threshold-free metrics:
-    * ``roc_auc``, ``pr_auc``, ``avg_precision``
+    * ``roc_auc``, ``pr_auc``, ``avg_precision``, ``eer``
 
 Threshold-dependent metrics (use ``threshold``):
     * ``accuracy``, ``precision``, ``recall``, ``f1``, ``tpr``, ``fpr``
@@ -9,6 +9,10 @@ Threshold-dependent metrics (use ``threshold``):
 Note that ``tpr`` equals ``recall`` (sensitivity); both are reported
 for convenience — ``recall`` for the PR vocabulary, ``tpr`` for the
 ROC vocabulary.
+
+``eer`` (Equal Error Rate) is the operating-point error where the false
+acceptance rate equals the false rejection rate; standard for audio
+anti-spoofing benchmarks (ASVspoof, In-The-Wild, …).
 """
 
 from __future__ import annotations
@@ -45,6 +49,7 @@ def compute_metrics(
             precision_score,
             recall_score,
             roc_auc_score,
+            roc_curve,
         )
     except ImportError as exc:
         raise ImportError(
@@ -79,9 +84,42 @@ def compute_metrics(
         results["pr_auc"] = float(auc(recall, precision))
 
         results["avg_precision"] = float(average_precision_score(labels_arr, scores_arr))
+        results["eer"] = _compute_eer(labels_arr, scores_arr)
     else:
         results["roc_auc"] = float("nan")
         results["pr_auc"] = float("nan")
         results["avg_precision"] = float("nan")
+        results["eer"] = float("nan")
 
     return results
+
+
+def _compute_eer(labels: np.ndarray, scores: np.ndarray) -> float:
+    """Equal Error Rate (FAR == FRR), linearly interpolated on the ROC curve.
+
+    Convention: ``labels == 1`` is the positive class (AI / spoof) and
+    higher ``scores`` correspond to that class — matching DetectZoo's
+    "higher score ⇒ more likely AI" output convention.
+    """
+    from sklearn.metrics import roc_curve
+
+    fpr, tpr, _ = roc_curve(labels, scores, pos_label=1)
+    fnr = 1.0 - tpr
+    # Find the index where the gap (fpr - fnr) changes sign, then linearly
+    # interpolate between the two surrounding points to get sub-bin precision.
+    diff = fpr - fnr
+    sign_change = np.where(np.diff(np.sign(diff)) != 0)[0]
+    if sign_change.size == 0:
+        # No crossover (e.g. degenerate scores): fall back to the closest point.
+        idx = int(np.argmin(np.abs(diff)))
+        return float((fpr[idx] + fnr[idx]) / 2.0)
+    i = int(sign_change[0])
+    # Linear interpolation between (fpr[i], fnr[i]) and (fpr[i+1], fnr[i+1]).
+    d0, d1 = diff[i], diff[i + 1]
+    if d1 == d0:
+        t = 0.0
+    else:
+        t = -d0 / (d1 - d0)
+    fpr_eer = fpr[i] + t * (fpr[i + 1] - fpr[i])
+    fnr_eer = fnr[i] + t * (fnr[i + 1] - fnr[i])
+    return float((fpr_eer + fnr_eer) / 2.0)

@@ -5,7 +5,7 @@ from __future__ import annotations
 import gc
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Sequence, Union
+from typing import Any, Dict, List, Optional, Sequence, Union
 
 import torch
 from tqdm import tqdm
@@ -18,6 +18,20 @@ from detectzoo.utils.metrics import compute_metrics
 logger = get_logger(__name__)
 
 
+# Per-modality print views for `run_and_print`. Audio uses the canonical
+# anti-spoofing trio (EER / AUC / F1); image and text keep DetectZoo's
+# original column set unchanged.
+_DEFAULT_PRINT_COLUMNS = [
+    "detector", "accuracy", "precision", "recall", "f1",
+    "tpr", "fpr", "roc_auc", "pr_auc",
+]
+_PRINT_VIEWS = {
+    "audio": ["detector", "eer", "roc_auc", "f1"],
+    "image": _DEFAULT_PRINT_COLUMNS,
+    "text": _DEFAULT_PRINT_COLUMNS,
+}
+
+
 class BenchmarkEvaluator:
     """Run one or more detectors on a dataset and compute metrics.
 
@@ -27,10 +41,29 @@ class BenchmarkEvaluator:
         results = evaluator.run([detector_a, detector_b])
         for name, metrics in results.items():
             print(name, metrics)
+
+    Parameters
+    ----------
+    dataset:
+        Dataset to evaluate against.
+    modality:
+        Controls only :meth:`run_and_print`'s column selection — execution
+        and saved JSON are unaffected. When ``None`` (the default), the
+        modality is auto-inferred from ``dataset.modality``. Pass
+        ``modality="audio"`` to force the audio view (``detector | eer |
+        roc_auc | f1``), or any other value to fall back to the default
+        column set. Image and text behaviour is unchanged from earlier
+        versions.
     """
 
-    def __init__(self, dataset: BaseDataset) -> None:
+    def __init__(
+        self,
+        dataset: BaseDataset,
+        *,
+        modality: Optional[str] = None,
+    ) -> None:
         self.dataset = dataset
+        self.modality = modality if modality is not None else getattr(dataset, "modality", None)
 
     def evaluate_single(
         self,
@@ -108,12 +141,14 @@ class BenchmarkEvaluator:
         return results
 
     def run_and_print(self, detectors: Sequence[BaseDetector]) -> None:
-        """Evaluate detectors and print a comparison table."""
+        """Evaluate detectors and print a comparison table.
+
+        For audio datasets/detectors the printed columns are reduced to the
+        canonical anti-spoofing trio ``detector | eer | roc_auc | f1``.
+        Image and text use the same column set DetectZoo has always printed.
+        """
         all_results = self.run(detectors)
-        header_keys = [
-            "detector", "accuracy", "precision", "recall", "f1",
-            "tpr", "fpr", "roc_auc", "pr_auc",
-        ]
+        header_keys = _PRINT_VIEWS.get(self.modality, _DEFAULT_PRINT_COLUMNS)
         header = " | ".join(f"{k:>18s}" for k in header_keys)
         print(header)
         print("-" * len(header))
