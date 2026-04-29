@@ -164,6 +164,7 @@ class BenchmarkEvaluator:
         *,
         save_scores: bool = False,
         unload_between: bool = True,
+        meta: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Evaluate detectors and save the results to a JSON file.
 
@@ -177,6 +178,10 @@ class BenchmarkEvaluator:
         save_scores:
             If ``True``, per-sample labels and scores are included in the
             saved output under each detector's ``"samples"`` key.
+        meta:
+            Optional metadata dict.  When provided the saved JSON becomes
+            ``{"meta": <meta>, "results": <detector_metrics>}`` instead of
+            the flat ``{detector: metrics}`` form.
 
         Returns
         -------
@@ -184,9 +189,13 @@ class BenchmarkEvaluator:
         """
         all_results = self.run(detectors, save_scores=save_scores, unload_between=unload_between)
 
+        payload: Any = all_results
+        if meta is not None:
+            payload = {"meta": meta, "results": all_results}
+
         output_path = Path(output_path)
         output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(all_results, indent=2, default=str))
+        output_path.write_text(json.dumps(payload, indent=2, default=str))
 
         logger.info("Results saved to %s", output_path)
         return all_results
