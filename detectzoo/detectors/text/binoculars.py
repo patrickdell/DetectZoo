@@ -48,7 +48,7 @@ class BinocularsDetector(BaseTextDetector):
         self,
         observer_model: str = "gpt2",
         performer_model: str = "gpt2-medium",
-        threshold: float = 0.0,
+        threshold: float = -0.9,
         device: str = "cpu",
         max_length: int = 512,
         **kwargs: Any,
