@@ -1,6 +1,6 @@
 # DetectZoo
 
-![DetectZoo](./logo.jpg)
+![DetectZoo](./DetectZoo_banner.png)
 
 DetectZoo is a research-oriented Python toolkit that provides **implementations of AI-generated content detectors across multiple modalities**, including **text, images, and audio**.
 
