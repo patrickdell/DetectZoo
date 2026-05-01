@@ -449,18 +449,83 @@ def build_anti_deepfake_detector(
         fairseq_sd, expected_keys
     )
 
+    # Pre-load visibility: how many fairseq SSL tensors did we actually
+    # find a destination for, vs how many we know we're dropping on
+    # purpose, vs how many fell through every rule (these last ones are
+    # the silent-failure mode -- if non-zero they get logged below).
+    n_fairseq_ssl = sum(1 for k in fairseq_sd if k.startswith(_SSL_PREFIX))
+    n_intentionally_dropped = sum(
+        1 for k in fairseq_sd
+        if k.startswith(_SSL_PREFIX)
+        and (
+            any(k[len(_SSL_PREFIX):].startswith(p) for p in _DROP_PREFIXES)
+            or k[len(_SSL_PREFIX):] == "label_embs_concat"
+        )
+    )
+    n_translated = len(new_sd)
+    n_unmapped_fairseq = n_fairseq_ssl - n_intentionally_dropped - n_translated
+
+    sample_fairseq = sorted(
+        k for k in fairseq_sd if k.startswith(_SSL_PREFIX)
+    )[:5]
+    sample_hf = sorted(expected_keys)[:5]
+    _LOGGER.info(
+        "AntiDeepfake/%s: state-dict translation -- "
+        "fairseq SSL=%d, HF expected=%d, translated=%d, "
+        "intentionally_dropped=%d, unmapped_fairseq=%d.",
+        model_name,
+        n_fairseq_ssl,
+        len(expected_keys),
+        n_translated,
+        n_intentionally_dropped,
+        n_unmapped_fairseq,
+    )
+    _LOGGER.debug(
+        "AntiDeepfake/%s: fairseq sample (5): %s",
+        model_name, sample_fairseq,
+    )
+    _LOGGER.debug(
+        "AntiDeepfake/%s: HF expected sample (5): %s",
+        model_name, sample_hf,
+    )
+
     missing, unexpected = ssl_model.load_state_dict(new_sd, strict=False)
+
+    # ``masked_spec_embed`` is the only HF SSL parameter we deliberately
+    # leave at random init (we explicitly disable SpecAugment above, so
+    # its value never participates in the forward pass at inference).
+    # Anything else still missing is a real silent-failure: a fairseq key
+    # we should have mapped but didn't, or an HF model parameter we
+    # forgot to feed. Log loudly and refuse to proceed.
+    benign_missing = {"masked_spec_embed"}
+    silently_random = [k for k in missing if k not in benign_missing]
+    if silently_random:
+        _LOGGER.error(
+            "AntiDeepfake/%s: %d HF SSL tensor(s) left at RANDOM INIT after "
+            "translation -- the model will produce garbage scores. "
+            "First 10: %s",
+            model_name,
+            len(silently_random),
+            silently_random[:10],
+        )
+        raise RuntimeError(
+            f"AntiDeepfake/{model_name}: state-dict translation is incomplete: "
+            f"{len(silently_random)} expected HF SSL parameter(s) were not "
+            f"populated by _translate_fairseq_ssl_state_dict and would have "
+            f"silently stayed at random init. First 10: {silently_random[:10]}. "
+            f"Fix the rules in _translate_fairseq_ssl_state_dict to cover "
+            f"these keys."
+        )
     if missing:
         _LOGGER.debug(
-            "AntiDeepfake/%s: %d SSL tensor(s) left at random init: %s%s",
-            model_name,
-            len(missing),
-            missing[:8],
-            " ..." if len(missing) > 8 else "",
+            "AntiDeepfake/%s: %d SSL tensor(s) left at random init "
+            "(all benign HF-only buffers): %s",
+            model_name, len(missing), missing,
         )
     if unexpected:
-        _LOGGER.debug(
-            "AntiDeepfake/%s: %d unexpected SSL tensor(s) ignored: %s%s",
+        _LOGGER.warning(
+            "AntiDeepfake/%s: %d unexpected SSL tensor(s) ignored by HF "
+            "model: %s%s",
             model_name,
             len(unexpected),
             unexpected[:8],
