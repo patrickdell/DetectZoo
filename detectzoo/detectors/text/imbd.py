@@ -75,7 +75,7 @@ class ImBDDetector(BaseTextDetector):
             (PEFT/LoRA adapter atop GPT-Neo-2.7B).
         use_peft: Whether to load the model as a PEFT adapter via
             ``AutoPeftModelForCausalLM``.  Set ``True`` when using the
-            ImBD inference checkpoint.  Default ``False``.
+            ImBD inference checkpoint.  Default ``True``.
         threshold: Decision boundary on the discrepancy score.
         device: ``"cpu"`` or ``"cuda"``.
     """
@@ -83,7 +83,7 @@ class ImBDDetector(BaseTextDetector):
     def __init__(
         self,
         model_name: str = "xyzhu1225/ImBD",
-        use_peft: bool = False,
+        use_peft: bool = True,
         threshold: float = 0.0,
         device: str = "cpu",
         **kwargs: Any,
