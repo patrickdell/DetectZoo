@@ -32,7 +32,7 @@ class EntropyDetector(BaseTextDetector):
     def __init__(
         self,
         model_name: str = "gpt2",
-        threshold: float = 0.0,
+        threshold: float = -4.0,
         device: str = "cpu",
         **kwargs: Any,
     ) -> None:
