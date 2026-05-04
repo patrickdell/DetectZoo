@@ -13,9 +13,11 @@ Machine text was drawn from a model distribution, so its continuation
 is hard to reproduce exactly — the original will have notably higher
 log-prob than the re-generations.  For human text the gap is smaller.
 
-    DNA-GPT(x) = log p(x) − mean_i( log p(x̃_i) )
+    DNA-GPT(x) = log p(x) − mean_i( log p(trim(x̃_i)) )
 
-where x̃_i are re-generated versions with different continuations.
+where x̃_i are re-generated versions with different continuations,
+each trimmed to ``min(len(x), len(x̃_i))`` words.  The original text
+is scored at full length (not trimmed).
 """
 
 from __future__ import annotations
@@ -57,7 +59,7 @@ class DNAGPTDetector(BaseTextDetector):
         min_words: Minimum word count for each regen; the batch is
             re-sampled until this is reached (default 55).
         min_length: ``min_length`` passed to ``generate`` (default 150).
-        max_length: ``max_length`` passed to ``generate`` (default 300).
+        max_length: ``max_length`` passed to ``generate`` (default 200).
         top_p: top-p for nucleus sampling (default 0.96).
         temperature: Sampling temperature (default 1.0).
         max_retries: Cap on regeneration retries (default 10).
@@ -73,7 +75,7 @@ class DNAGPTDetector(BaseTextDetector):
         n_regens: int = 10,
         min_words: int = 55,
         min_length: int = 150,
-        max_length: int = 300,
+        max_length: int = 200,
         top_p: float = 0.96,
         temperature: float = 1.0,
         max_retries: int = 10,
@@ -191,30 +193,28 @@ class DNAGPTDetector(BaseTextDetector):
         if not regens_raw:
             return self._make_result(0.0, reason="regeneration failed")
 
-        # For each regen, trim original and regen to the shorter length and score both.
-        # The ORIGINAL-side log-prob is recomputed per regen because the
-        # shorter-length trim differs regen-by-regen.
-        original_lls: list[float] = []
+        # The full original text is scored once, and each regen
+        # is trimmed to min(len(original), len(regen)) words.
+        original_ll = self._mean_log_prob(text)
+
         regen_lls: list[float] = []
         for regen in regens_raw:
             if not regen.strip():
                 continue
-            o_trim, r_trim = self._trim_to_shorter_length(text, regen)
-            if not o_trim.strip() or not r_trim.strip():
+            _, r_trim = self._trim_to_shorter_length(text, regen)
+            if not r_trim.strip():
                 continue
-            original_lls.append(self._mean_log_prob(o_trim))
             regen_lls.append(self._mean_log_prob(r_trim))
 
         if not regen_lls:
             return self._make_result(0.0, reason="regeneration failed")
 
-        mean_original_ll = float(np.mean(original_lls))
         mean_regen_ll = float(np.mean(regen_lls))
-        score = mean_original_ll - mean_regen_ll
+        score = original_ll - mean_regen_ll
 
         return self._make_result(
             score,
-            original_ll=mean_original_ll,
+            original_ll=original_ll,
             mean_regen_ll=mean_regen_ll,
             n_regens_used=len(regen_lls),
         )
