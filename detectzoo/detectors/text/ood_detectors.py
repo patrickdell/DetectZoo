@@ -37,6 +37,16 @@ logger = get_logger(__name__)
 # ------------------------------------------------------------------
 
 
+_DETECTIVE_CHECKPOINTS = {
+    "Deepfake_best.pth": "heyongxin233/DeTeCtive",
+    "M4_monolingual_best.pth": "heyongxin233/DeTeCtive",
+    "M4_multilingual_best.pth": "heyongxin233/DeTeCtive",
+    "OUTFOX_best.pth": "heyongxin233/DeTeCtive",
+    "TuringBench_best.pth": "heyongxin233/DeTeCtive",
+    "model_raid.pth": "Shengkun/ood-detection",
+}
+
+
 class _OODTextBase(BaseTextDetector):
     """Shared base for OOD-based text detectors.
 

@@ -17,7 +17,8 @@ The default encoder is ``princeton-nlp/unsup-simcse-roberta-base``
 (matching the official implementation).  Official fine-tuned
 checkpoints are available on HuggingFace at
 ``heyongxin233/DeTeCtive`` (e.g. ``Deepfake_best.pth``,
-``M4_monolingual_best.pth``).
+``M4_monolingual_best.pth``) and ``Shengkun/ood-detection``
+(``model_raid.pth`` — trained on the RAID split).
 
 When a checkpoint is loaded, the full contrastive embedding model is
 used for inference.  Without a checkpoint, the detector uses the
@@ -39,13 +40,14 @@ from detectzoo.utils.logger import get_logger
 logger = get_logger(__name__)
 
 _HF_CHECKPOINT_REPO = "heyongxin233/DeTeCtive"
-_AVAILABLE_CHECKPOINTS = [
-    "Deepfake_best.pth",
-    "M4_monolingual_best.pth",
-    "M4_multilingual_best.pth",
-    "OUTFOX_best.pth",
-    "TuringBench_best.pth",
-]
+_AVAILABLE_CHECKPOINTS = {
+    "Deepfake_best.pth": "heyongxin233/DeTeCtive",
+    "M4_monolingual_best.pth": "heyongxin233/DeTeCtive",
+    "M4_multilingual_best.pth": "heyongxin233/DeTeCtive",
+    "OUTFOX_best.pth": "heyongxin233/DeTeCtive",
+    "TuringBench_best.pth": "heyongxin233/DeTeCtive",
+    "model_raid.pth": "Shengkun/ood-detection",
+}
 
 
 @register_detector("detective")
@@ -105,16 +107,17 @@ class DeTeCtiveDetector(BaseTextDetector):
         ckpt_path = self.checkpoint
         if not os.path.isfile(str(ckpt_path)):
             if ckpt_path in _AVAILABLE_CHECKPOINTS:
+                repo_id = _AVAILABLE_CHECKPOINTS[ckpt_path]
                 try:
                     from huggingface_hub import hf_hub_download
                     ckpt_path = hf_hub_download(
-                        repo_id=_HF_CHECKPOINT_REPO,
+                        repo_id=repo_id,
                         filename=str(self.checkpoint),
                     )
                 except Exception as exc:
                     logger.warning(
                         "Could not download checkpoint '%s' from %s: %s",
-                        self.checkpoint, _HF_CHECKPOINT_REPO, exc,
+                        self.checkpoint, repo_id, exc,
                     )
                     return
             else:
