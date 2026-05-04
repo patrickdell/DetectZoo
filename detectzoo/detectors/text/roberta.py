@@ -1,5 +1,10 @@
 """RoBERTa OpenAI Detector — supervised GPT-2 output detection.
 
+Reference:
+    Solaiman et al., "Release strategies and the social impacts
+    of language models." arXiv 2024.
+
+
 Uses the pre-trained OpenAI GPT-2 output detector models hosted on
 HuggingFace.  Two variants are available:
 
