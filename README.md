@@ -274,7 +274,7 @@ metrics = compute_metrics(
     scores=[0.1, 0.3, 0.8, 0.9],
     threshold=0.5,
 )
-# {'accuracy': 1.0, 'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'auroc': 1.0, 'avg_precision': 1.0}
+# {'accuracy': 1.0, 'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'tpr': 1.0, 'fpr': 0.0, 'roc_auc': 1.0, 'pr_auc': 1.0, 'avg_precision': 1.0}
 ```
 
 ---
