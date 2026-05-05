@@ -5,7 +5,7 @@ from __future__ import annotations
 import gc
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Callable, Dict, List, Optional, Sequence, Union
 
 import torch
 from tqdm import tqdm
@@ -111,6 +111,7 @@ class BenchmarkEvaluator:
         *,
         save_scores: bool = False,
         unload_between: bool = True,
+        on_detector_done: Optional[Callable[[Dict[str, Dict[str, Any]]], None]] = None,
     ) -> Dict[str, Dict[str, Any]]:
         """Evaluate multiple detectors and return ``{name: metrics}``.
 
@@ -122,6 +123,9 @@ class BenchmarkEvaluator:
             before the next detector starts loading.  Disable this only if
             you intentionally want the models to stay resident (e.g. for
             repeated calls on the same evaluator).
+        on_detector_done:
+            Optional callback invoked with the accumulated results dict
+            after each detector finishes. Useful for incremental saving.
         """
         items = self.dataset.load()
         results: Dict[str, Dict[str, Any]] = {}
@@ -138,6 +142,8 @@ class BenchmarkEvaluator:
                     gc.collect()
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
+            if on_detector_done is not None:
+                on_detector_done(results)
         return results
 
     def run_and_print(self, detectors: Sequence[BaseDetector]) -> None:
@@ -157,6 +163,18 @@ class BenchmarkEvaluator:
                              else f"{metrics.get(k, 0):>18.4f}" for k in header_keys)
             print(row)
 
+    def _save_payload(
+        self,
+        results: Dict[str, Dict[str, Any]],
+        output_path: Path,
+        meta: Optional[Dict[str, Any]],
+    ) -> None:
+        payload: Any = results
+        if meta is not None:
+            payload = {"meta": meta, "results": results}
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        output_path.write_text(json.dumps(payload, indent=2, default=str))
+
     def run_and_save(
         self,
         detectors: Sequence[BaseDetector],
@@ -165,6 +183,7 @@ class BenchmarkEvaluator:
         save_scores: bool = False,
         unload_between: bool = True,
         meta: Optional[Dict[str, Any]] = None,
+        incremental: bool = False,
     ) -> Dict[str, Dict[str, Any]]:
         """Evaluate detectors and save the results to a JSON file.
 
@@ -182,20 +201,24 @@ class BenchmarkEvaluator:
             Optional metadata dict.  When provided the saved JSON becomes
             ``{"meta": <meta>, "results": <detector_metrics>}`` instead of
             the flat ``{detector: metrics}`` form.
+        incremental:
+            If ``True``, the output file is rewritten after each detector
+            finishes so partial results survive if a later detector fails.
 
         Returns
         -------
         The same ``{name: metrics}`` dictionary that :meth:`run` returns.
         """
-        all_results = self.run(detectors, save_scores=save_scores, unload_between=unload_between)
-
-        payload: Any = all_results
-        if meta is not None:
-            payload = {"meta": meta, "results": all_results}
-
         output_path = Path(output_path)
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        output_path.write_text(json.dumps(payload, indent=2, default=str))
+        callback = (lambda results: self._save_payload(results, output_path, meta)) if incremental else None
+
+        all_results = self.run(
+            detectors,
+            save_scores=save_scores,
+            unload_between=unload_between,
+            on_detector_done=callback,
+        )
+        self._save_payload(all_results, output_path, meta)
 
         logger.info("Results saved to %s", output_path)
         return all_results
