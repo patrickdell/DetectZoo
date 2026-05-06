@@ -15,6 +15,7 @@ from detectzoo.detectors.image.c2p_clip import C2PCLIPDetector
 from detectzoo.detectors.image.manifold_bias import ManifoldBiasDetector
 from detectzoo.detectors.image.drct import DRCTDetector
 from detectzoo.detectors.image.freqnet import FreqNetDetector
+from detectzoo.detectors.image.ladeda import LaDeDaDetector
 
 __all__ = [
     "AerobladeDetector",
@@ -33,4 +34,5 @@ __all__ = [
     "ManifoldBiasDetector",
     "DRCTDetector",
     "FreqNetDetector",
+    "LaDeDaDetector",
 ]
