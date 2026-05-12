@@ -279,7 +279,7 @@ for item in dataset:
 
 | Dataset | Class | Description | Auto-download source |
 |---------|-------|-------------|----------------------|
-| CNNDetection / ForenSynths | `CNNDetectionDataset` | Train/val/test benchmark for CNN-generated image detection. Uses `split="train"`, `"val"`, or `"test"` and optional `partitions=[...]`. | HuggingFace (sywang/CNNDetection) / upstream CNNDetection archives |
+| CNNDetection / ForenSynths | `CNNDetectionDataset` | Train/val/test benchmark for CNN-generated image detection. Uses `split="train"`, `"val"`, or `"test"` and optional `partitions=[...]`. | HuggingFace (`sywang/CNNDetection`) / upstream CNNDetection archives |
 | AIGCDetect | `AIGCDetectDataset` | PatchCraft / AIGCDetect benchmark with 16 different GAN and diffusion generator partitions. | ModelScope (`aemilia/AIGCDetectionBenchmark`) |
 | GenImage | `GenImageDataset` | Million-scale AI-generated image benchmark with generator partitions such as ADM, BigGAN, Midjourney, VQDM, GLIDE, Stable Diffusion, and Wukong. | HuggingFace (`ENSTA-U2IS/GenImage`) |
 | UnivFD Diffusion | `UnivFDDataset` | Univ-FD diffusion evaluation partitions including ADM, LDM, GLIDE, and DALL-E. | Google Drive |
