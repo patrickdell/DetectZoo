@@ -169,7 +169,37 @@ Detectors for identifying LLM-generated text. Each accepts a string (or file pat
 
 Detectors for identifying AI-generated images (diffusion, GAN, etc.). Each accepts an image file path or a PIL `Image`.
 
-Table will be added soon.
+**Artifact / frequency-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `cnnspot` | `CNNSpotDetector` | ResNet-50 detector from CNNDetection. Learns generator artifacts that are especially visible in frequency statistics. (Wang et al., CVPR 2020) |
+| `lgrad` | `LGradDetector` | Learning on Gradients. Converts RGB images to gradient-domain images before classification to emphasize generator-agnostic high-frequency traces. (Tan et al., CVPR 2023) |
+| `npr_deepfake` | `NPRDeepfakeDetector` | Neighboring Pixel Relationships. Detects upsampling artifacts using a residual map between the image and a down-upsampled version. (Tan et al., CVPR 2024) |
+| `freqnet` | `FreqNetDetector` | Frequency-aware ResNet detector designed to improve cross-generator generalization through frequency-space learning. (Tan et al., AAAI 2024) |
+| `ladeda` | `LaDeDaDetector` | Locally Aware Deepfake Detection Algorithm. Scores local 9×9 patches and pools them into an image-level decision. (Cavia et al., 2024) |
+| `safe` | `SAFEDetector` | Simple Preserved and Augmented FEatures. Applies DWT high-pass preprocessing before a lightweight ResNet classifier. (Li et al., KDD 2025) |
+
+**CLIP / representation-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `univfd` | `UnivFDDetector` | Universal Fake Image Detector. Uses CLIP ViT-L/14 image features with a linear classifier for broad generator transfer. (Ojha et al., CVPR 2023) |
+| `fatformer` | `FatFormerDetector` | Forgery-aware Adaptive Transformer. Adds spatial/frequency adapters and language-guided alignment on top of CLIP. (Liu et al., CVPR 2024) |
+| `c2p_clip` | `C2PCLIPDetector` | Category Common Prompt CLIP. Uses CLIP visual features with a trained binary head for deepfake detection. (Tan et al., AAAI 2025) |
+| `d3` | `D3Detector` | Discrepancy Deepfake Detector. Compares CLIP features from intact and patch-shuffled image views. (Yang et al., CVPR 2025) |
+| `cospy` | `CoSpyDetector` | Combines semantic and pixel features with pretrained CO-SPY weights trained on ProGAN. (Cheng et al., CVPR 2025) |
+| `cospy_sd_v1_4` | `CoSpySDV14Detector` | CO-SPY variant with weights for Stable Diffusion v1.4 style data. |
+| `aide` | `AIDEDetector` | Hybrid detector combining SRM/DCT artifact features with OpenCLIP ConvNeXt semantic features. (Yan et al., ICLR 2025) |
+| `drct` | `DRCTDetector` | Diffusion Reconstruction Contrastive Training. Uses a ConvNeXt detector trained with diffusion-reconstructed contrastive samples. (Chen et al., ICML 2024) |
+| `patchcraft` | `PatchCraftDetector` | Rich-vs-poor texture contrast. Detects AI images from texture patch contrast features. (Zhong et al., 2023) |
+
+**Training-free / calibration-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `aeroblade` | `AerobladeDetector` | Training-free latent diffusion detector. Scores images by VAE reconstruction error; generated images tend to reconstruct more cleanly. (Ricker et al., CVPR 2024) |
+| `manifold_bias` | `ManifoldBiasDetector` | Manifold Induced Biases. Zero-/few-shot detector that estimates alignment with the natural image manifold. (Brokman et al., ICLR 2025) |
 
 ### Audio
 
@@ -203,7 +233,9 @@ DetectZoo includes a built-in evaluation pipeline for comparing detectors on lab
 
 ### Built-in datasets
 
-DetectZoo ships with loaders for popular LLM-generated text detection benchmarks. Data is downloaded and cached automatically on first use — no manual setup needed:
+DetectZoo ships with loaders for popular detection benchmarks. Data is downloaded and cached automatically on first use — no manual setup needed.
+
+**Text datasets:**
 
 ```python
 from detectzoo.datasets import CHEATDataset
@@ -232,6 +264,27 @@ for item in dataset:
 | TuringBench | `TuringBenchDataset` | Human vs. 19 neural generators — binary TT and 20-way AA tasks (EMNLP'21) | HuggingFace (`turingbench/TuringBench`) |
 | WritingPrompts | `WritingPromptsDataset` | ~303k human-written stories from r/WritingPrompts | HuggingFace (`euclaise/writingprompts`) |
 | XSum | `XSumDataset` | BBC article summaries — human-written source corpus for detection benchmarks | HuggingFace (`EdinburghNLP/xsum`) |
+
+**Image datasets:**
+
+```python
+from detectzoo import load_dataset
+
+# Generator-partitioned image benchmarks use the same `partitions` argument
+dataset = load_dataset("cnn_detection", split="test", partitions=["cyclegan"])
+
+for item in dataset:
+    print(item.label, item.data, item.metadata.get("partition"))
+```
+
+| Dataset | Class | Description | Auto-download source |
+|---------|-------|-------------|----------------------|
+| CNNDetection / ForenSynths | `CNNDetectionDataset` | Train/val/test benchmark for CNN-generated image detection. Uses `split="train"`, `"val"`, or `"test"` and optional `partitions=[...]`. | HuggingFace (sywang/CNNDetection) / upstream CNNDetection archives |
+| AIGCDetect | `AIGCDetectDataset` | PatchCraft / AIGCDetect benchmark with 16 different GAN and diffusion generator partitions. | ModelScope (`aemilia/AIGCDetectionBenchmark`) |
+| GenImage | `GenImageDataset` | Million-scale AI-generated image benchmark with generator partitions such as ADM, BigGAN, Midjourney, VQDM, GLIDE, Stable Diffusion, and Wukong. | HuggingFace (`ENSTA-U2IS/GenImage`) |
+| UnivFD Diffusion | `UnivFDDataset` | Univ-FD diffusion evaluation partitions including ADM, LDM, GLIDE, and DALL-E. | Google Drive |
+| Self-Synthesis | `SelfSynthesisDataset` | GANGen-Detection benchmark with nine GAN partitions such as AttGAN, BEGAN, SNGAN, STGAN, and others. | Google Drive |
+| Chameleon | `ChameleonDataset` | AIDE paper testset for sanity-checking AI-generated image detectors. | Google Drive |
 
 All datasets cache downloaded files under a `.detectzoo_data/` directory (configurable via `cache_dir`) so subsequent loads are instant.
 
