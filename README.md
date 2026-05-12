@@ -205,7 +205,26 @@ Detectors for identifying AI-generated images (diffusion, GAN, etc.). Each accep
 
 Detectors for identifying synthetic speech and deepfake audio. Each accepts an audio file path or a `(waveform, sample_rate)` tuple.
 
-Table will be added soon.
+**End-to-end / graph-based methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `rawnet2` | `RawNet2Detector` | End-to-end sinc-filter front-end with residual blocks and GRU. (Tak et al., Interspeech 2021) |
+| `aasist` | `AASISTDetector` | Integrated spectro-temporal graph attention network. (Jung et al., ICASSP 2022) |
+| `rawgat_st` | `RawGATSTDetector` | End-to-end spectro-temporal graph attention on raw waveform. (Tak et al., Interspeech 2021) |
+| `res_tssdnet` | `ResTSSDNetDetector` | Residual time-domain and spectral-domain dilated network. (Hua et al., 2021) |
+| `samo` | `SAMODetector` | Speaker attractor multi-center one-class learning. (Ding et al., 2023) |
+| `ast_asvspoof` | `ASTASVspoofDetector` | Audio Spectrogram Transformer fine-tuned on ASVspoof 2019. (Gong et al., 2021) |
+
+**SSL / self-supervised methods:**
+
+| Name | Class | Method |
+|------|-------|--------|
+| `anti_deepfake_wav2vec` | `AntiDeepfakeWav2VecDetector` | SSL post-training of Wav2Vec2-Large on 74k hrs speech. (Ge et al., 2022) |
+| `anti_deepfake_hubert` | `AntiDeepfakeHubertDetector` | SSL post-training of HuBERT-XLarge on 74k hrs speech. (Ge et al., 2022) |
+| `anti_deepfake_xlsr2b` | `AntiDeepfakeXLSR2BDetector` | SSL post-training of XLS-R-2B on 74k hrs speech. (Ge et al., 2022) |
+| `xlsr_sls` | `XLSRSLSDetector` | Sensitive layer selection over XLS-R backbone. (Zhang et al., 2022) |
+
 ---
 
 ## Core Components
@@ -285,6 +304,26 @@ for item in dataset:
 | UnivFD Diffusion | `UnivFDDataset` | Univ-FD diffusion evaluation partitions including ADM, LDM, GLIDE, and DALL-E. | Google Drive |
 | Self-Synthesis | `SelfSynthesisDataset` | GANGen-Detection benchmark with nine GAN partitions such as AttGAN, BEGAN, SNGAN, STGAN, and others. | Google Drive |
 | Chameleon | `ChameleonDataset` | AIDE paper testset for sanity-checking AI-generated image detectors. | Google Drive |
+
+**Audio datasets:**
+
+```python
+from detectzoo.datasets import ASVspoof2019Dataset
+
+# Auto-downloads on first call, cached in .detectzoo_data/asvspoof2019/
+dataset = ASVspoof2019Dataset()
+dataset = ASVspoof2019Dataset(subset="LA")   # Logical Access partition only
+
+for item in dataset:
+    print(item.label, item.data)
+```
+
+| Dataset | Class | Description | Auto-download source |
+|---------|-------|-------------|----------------------|
+| ASVspoof 2019 | `ASVspoof2019Dataset` | Logical Access (LA) spoofing attacks benchmark — the standard anti-spoofing evaluation corpus. | Official Website |
+| FoR | `FoRDataset` | Fake-or-Real speech corpus covering a range of TTS and voice conversion systems. | Official Website |
+| In-the-Wild | `InTheWildDataset` | Real and synthesized celebrity speech collected from the internet. | Official Website |
+| Deepfake-Eval-2024 | `DeepfakeEval2024Dataset` | In-the-wild deepfakes sourced from social media (2024 collection). | HuggingFace |
 
 All datasets cache downloaded files under a `.detectzoo_data/` directory (configurable via `cache_dir`) so subsequent loads are instant.
 
