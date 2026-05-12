@@ -16,7 +16,7 @@ from __future__ import annotations
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any, List, Optional, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from detectzoo.core.registry import register_dataset
 from detectzoo.datasets.base import BaseDataset, DatasetItem
@@ -98,8 +98,9 @@ class GenImageDataset(BaseDataset):
 
     Parameters
     ----------
-    partition : str
-        Generator folder name from :data:`GENIMAGE_PARTITIONS`.
+    partitions : sequence of str, optional
+        Generator folder names from :data:`GENIMAGE_PARTITIONS`. When None, loads all
+        partitions.
     split : str
         Which split to load — ``"val"`` (default) or ``"train"``.
     root : str or Path, optional
@@ -116,7 +117,7 @@ class GenImageDataset(BaseDataset):
     def __init__(
         self,
         *,
-        partition: str = "stable_diffusion_v_1_4",
+        partitions: Optional[Sequence[str]] = None,
         split: str = "val",
         root: str | Path | None = None,
         cache_dir: str | Path | None = None,
@@ -125,22 +126,28 @@ class GenImageDataset(BaseDataset):
     ) -> None:
         super().__init__(max_samples=max_samples, **kwargs)
 
-        # Validate partition and split
-        if partition not in GENIMAGE_PARTITIONS:
-            raise ValueError(f"Unknown GenImage partition {partition!r}. Valid: {list(GENIMAGE_PARTITIONS)}")
+        if partitions is None:
+            selected = list(GENIMAGE_PARTITIONS)
+        else:
+            selected = list(partitions)
+            invalid = [p for p in selected if p not in GENIMAGE_PARTITIONS]
+            if invalid:
+                raise ValueError(
+                    f"Unknown GenImage partition(s) {invalid!r}. Valid: {list(GENIMAGE_PARTITIONS)}"
+                )
         if split not in ("val", "train"):
             raise ValueError(f"split must be 'val' or 'train', got {split!r}")
 
-        self.partition = partition
+        self.partitions = selected
         self.split = split
         self.root = Path(root) if root is not None else None
         self.cache_dir = cache_dir
 
-    def _ensure_download(self) -> Tuple[Path, Path]:
+    def _ensure_download(self, partition: str) -> Tuple[Path, Path]:
         from detectzoo.datasets._download import get_cache_dir
 
         base = self.root.resolve() if self.root is not None else get_cache_dir("genimage", self.cache_dir)
-        part_dir = base / self.partition
+        part_dir = base / partition
         part_dir.mkdir(parents=True, exist_ok=True)
 
         found = _find_split_dirs(part_dir, self.split)
@@ -155,7 +162,7 @@ class GenImageDataset(BaseDataset):
                 return found
 
         # Nothing found and no archives — download then extract
-        _try_snapshot_download_hf(base, partition=self.partition, force=False)
+        _try_snapshot_download_hf(base, partition=partition, force=False)
         _extract_split_only(part_dir, self.split)
 
         found = _find_split_dirs(part_dir, self.split)
@@ -166,12 +173,13 @@ class GenImageDataset(BaseDataset):
         return found
 
     def _load_all(self) -> List[DatasetItem]:
-        real_dir, fake_dir = self._ensure_download()
-        meta = {"partition": self.partition, "split": self.split, "source_dataset": "genimage"}
         items: List[DatasetItem] = []
-        for label, directory, source in ((0, real_dir, "real"), (1, fake_dir, "fake")):
-            for path in sorted(directory.rglob("*")):
-                if path.is_file() and path.suffix.lower() in _IMAGE_EXTS:
-                    items.append(DatasetItem(data=str(path), label=label,
-                                             metadata={**meta, "source": source}))
+        for partition in self.partitions:
+            real_dir, fake_dir = self._ensure_download(partition)
+            meta = {"partition": partition, "split": self.split, "source_dataset": "genimage"}
+            for label, directory, source in ((0, real_dir, "real"), (1, fake_dir, "fake")):
+                for path in sorted(directory.rglob("*")):
+                    if path.is_file() and path.suffix.lower() in _IMAGE_EXTS:
+                        items.append(DatasetItem(data=str(path), label=label,
+                                                 metadata={**meta, "source": source}))
         return items

@@ -12,7 +12,7 @@ Upstream diffusion test data (per-domain archives):
 from __future__ import annotations
 
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Sequence, Tuple
 
 from detectzoo.core.registry import register_dataset
 from detectzoo.datasets.base import BaseDataset, DatasetItem
@@ -53,9 +53,9 @@ class UnivFDDataset(BaseDataset):
 
     Parameters
     ----------
-    partition : str or None, optional
-        ``None`` / ``"all"`` loads all eight partitions. Otherwise one key
-        from `UNIVFD_DIFFUSION_PARTITIONS`
+    partitions : sequence of str, optional
+        Diffusion partition keys from :data:`UNIVFD_DIFFUSION_PARTITIONS`. When
+        None or ``["all"]``, loads all eight partitions.
     real_dir, fake_dir : str or Path, optional
         Explicit image directories. Both must be provided together or both omitted.
     root : str or Path, optional
@@ -70,7 +70,7 @@ class UnivFDDataset(BaseDataset):
     def __init__(
         self,
         *,
-        partition: Optional[str] = None,
+        partitions: Optional[Sequence[str]] = None,
         real_dir: Optional[str | Path] = None,
         fake_dir: Optional[str | Path] = None,
         root: Optional[str | Path] = None,
@@ -85,16 +85,18 @@ class UnivFDDataset(BaseDataset):
         self._manual_real: Optional[Path] = Path(real_dir).expanduser().resolve() if real_dir else None
         self._manual_fake: Optional[Path] = Path(fake_dir).expanduser().resolve() if fake_dir else None
 
-        if partition is None or partition == "all":
+        if partitions is None or list(partitions) == ["all"]:
             self._keys = UNIVFD_DIFFUSION_PARTITIONS
-        elif partition in frozenset(UNIVFD_DIFFUSION_PARTITIONS):
-            self._keys = (partition,)
         else:
-            raise ValueError(
-                f"partition must be None, 'all', or one of "
-                f"{sorted(UNIVFD_DIFFUSION_PARTITIONS)}, got {partition!r}"
-            )
-        self.partition = partition
+            selected = list(partitions)
+            invalid = [p for p in selected if p not in UNIVFD_DIFFUSION_PARTITIONS]
+            if invalid:
+                raise ValueError(
+                    f"partitions must be None, ['all'], or values from "
+                    f"{sorted(UNIVFD_DIFFUSION_PARTITIONS)}, got {invalid!r}"
+                )
+            self._keys = tuple(selected)
+        self.partitions = list(self._keys)
 
         self.root: Path = (
             Path(root).expanduser().resolve()
@@ -123,7 +125,7 @@ class UnivFDDataset(BaseDataset):
 
     def _load_all(self) -> List[DatasetItem]:
         if self._manual_real is not None:
-            meta_key = self.partition or "unknown"
+            meta_key = self.partitions[0] if len(self.partitions) == 1 else "manual"
             return (
                 _collect_images(self._manual_real, label=0, partition=meta_key)
                 + _collect_images(self._manual_fake, label=1, partition=meta_key)

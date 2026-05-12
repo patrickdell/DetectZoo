@@ -52,8 +52,8 @@ class SelfSynthesisDataset(BaseDataset):
     root : str or Path, optional
         Directory that will contain ``Generalization_Test/GANGen-Detection/``. Default:
         ``.detectzoo_data/self_synthesis/``.
-    generators : sequence of str, optional
-        Subset of the nine GAN names; *None* loads all.
+    partitions : sequence of str, optional
+        Subset of the nine GAN partitions; *None* loads all.
     cache_dir : str or Path, optional
         Root cache directory (default ``.detectzoo_data``).
     """
@@ -64,7 +64,7 @@ class SelfSynthesisDataset(BaseDataset):
     def __init__(
         self,
         root: str | Path | None = None,
-        generators: Optional[Sequence[str]] = None,
+        partitions: Optional[Sequence[str]] = None,
         cache_dir: str | Path | None = None,
     ) -> None:
         from detectzoo.datasets._download import get_cache_dir
@@ -72,11 +72,20 @@ class SelfSynthesisDataset(BaseDataset):
         super().__init__()
         self.root = Path(root) if root is not None else get_cache_dir("self_synthesis", cache_dir)
         self._gangen_root = self.root / "Generalization_Test" / "GANGen-Detection"
-        self.generators = generators
+        if partitions is None:
+            self.partitions = list(_DEFAULT_GENERATORS)
+        else:
+            self.partitions = list(partitions)
+            invalid = [p for p in self.partitions if p not in _DEFAULT_GENERATORS]
+            if invalid:
+                raise ValueError(
+                    f"Unknown SelfSynthesis partition(s) {invalid!r}. "
+                    f"Valid: {list(_DEFAULT_GENERATORS)}"
+                )
         self.cache_dir = cache_dir
 
     def _ensure_download(self) -> None:
-        gens = list(self.generators) if self.generators is not None else list(_DEFAULT_GENERATORS)
+        gens = self.partitions
         dest_parent = self.root / "Generalization_Test"
         dest_parent.mkdir(parents=True, exist_ok=True)
 
@@ -144,7 +153,7 @@ class SelfSynthesisDataset(BaseDataset):
     def _load_all(self) -> List[DatasetItem]:
         self._ensure_download()
 
-        gens = list(self.generators) if self.generators is not None else list(_DEFAULT_GENERATORS)
+        gens = self.partitions
         items: List[DatasetItem] = []
 
         for gen in gens:
@@ -163,7 +172,12 @@ class SelfSynthesisDataset(BaseDataset):
                             DatasetItem(
                                 data=str(path),
                                 label=label,
-                                metadata={"split": "test", "generator": gen, "source": source},
+                                metadata={
+                                    "split": "test",
+                                    "partition": gen,
+                                    "generator": gen,
+                                    "source": source,
+                                },
                             )
                         )
 
