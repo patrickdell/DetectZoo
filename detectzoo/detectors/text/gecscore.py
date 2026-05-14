@@ -41,7 +41,7 @@ class GECScoreDetector(BaseTextDetector):
     def __init__(
         self,
         gec_model: str = "grammarly/coedit-large",
-        threshold: float = 0.92,
+        threshold: float = 0.9243697428995128,
         device: str = "cpu",
         max_length: int = 512,
         **kwargs: Any,
