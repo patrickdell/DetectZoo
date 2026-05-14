@@ -17,7 +17,7 @@ For the sake of anonymity, we put the package on TestPyPI and you can install it
 *Note: This is a temporary solution and we will release the package on PyPI after the paper is accepted.*
 
 ```bash
-pip install -i https://test.pypi.org/simple/ detectzoo_anon
+pip install -i https://test.pypi.org/simple/ detectzoo-anon
 ```
 
 or install from source:
