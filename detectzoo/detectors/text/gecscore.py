@@ -98,31 +98,15 @@ class GECScoreDetector(BaseTextDetector):
 
     @staticmethod
     def _rouge2_f(hypothesis: str, reference: str) -> float:
-        """Compute ROUGE-2 F-score between two texts."""
-        def _bigrams(text: str) -> dict[tuple[str, str], int]:
-            tokens = text.lower().split()
-            bg: dict[tuple[str, str], int] = {}
-            for i in range(len(tokens) - 1):
-                key = (tokens[i], tokens[i + 1])
-                bg[key] = bg.get(key, 0) + 1
-            return bg
+        """Compute ROUGE-2 F-score between two texts using py-rouge."""
+        from rouge import Rouge
 
-        hyp_bg = _bigrams(hypothesis)
-        ref_bg = _bigrams(reference)
-
-        if not hyp_bg or not ref_bg:
+        rouge = Rouge()
+        try:
+            scores = rouge.get_scores(hypothesis, reference, avg=True)
+            return scores["rouge-2"]["f"]
+        except ValueError:
             return 1.0 if hypothesis.strip() == reference.strip() else 0.0
-
-        overlap = 0
-        for bg, count in hyp_bg.items():
-            overlap += min(count, ref_bg.get(bg, 0))
-
-        precision = overlap / max(sum(hyp_bg.values()), 1)
-        recall = overlap / max(sum(ref_bg.values()), 1)
-
-        if precision + recall < 1e-10:
-            return 0.0
-        return 2 * precision * recall / (precision + recall)
 
     def predict(self, input_data: Any) -> DetectionResult:
         text = self._normalise_input(input_data)
@@ -131,7 +115,7 @@ class GECScoreDetector(BaseTextDetector):
         if not corrected.strip():
             return self._make_result(1.0, reason="empty correction")
 
-        score = self._rouge2_f(corrected, text)
+        score = self._rouge2_f(text, corrected)
 
         return self._make_result(
             score,
