@@ -1,7 +1,7 @@
 """IPAD — Inverse Prompt for AI Detection.
 
 Reference:
-    Fan et al., "IPAD: Inverse Prompt for AI Detection", NeurIPS 2025.
+    Chen et al., "IPAD: Inverse Prompt for AI Detection", NeurIPS 2025.
 
 IPAD is a three-module framework built on LoRA-fine-tuned
 ``microsoft/Phi-3-medium-128k-instruct`` models hosted at

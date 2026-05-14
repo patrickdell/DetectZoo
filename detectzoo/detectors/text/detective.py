@@ -1,7 +1,7 @@
 """DeTeCtive — multi-level contrastive learning detector.
 
 Reference:
-    He et al., "DeTeCtive: Detecting AI-generated Text via Multi-Level
+    Guo et al., "DeTeCtive: Detecting AI-generated Text via Multi-Level
     Contrastive Learning", NeurIPS 2024.
 
 DeTeCtive learns a text embedding space where texts from the same

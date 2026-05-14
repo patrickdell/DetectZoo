@@ -1,7 +1,7 @@
 """AdaDetectGPT — adaptive probability curvature detector.
 
 Reference:
-    Jin et al., "AdaDetectGPT: Adaptive Detection of LLM-Generated
+    Zhou et al., "AdaDetectGPT: Adaptive Detection of LLM-Generated
     Text with Statistical Guarantees", NeurIPS 2025.
 
 AdaDetectGPT generalises Fast-DetectGPT by introducing a *learned
