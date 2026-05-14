@@ -12,8 +12,12 @@ DetectZoo aggregates detection approaches into a **single, unified API**, allowi
 
 ## Installation
 
+For the sake of anonymity, we put the package on TestPyPI and you can install it with the following command:
+
+*Note: This is a temporary solution and we will release the package on PyPI after the paper is accepted.*
+
 ```bash
-pip install detectzoo
+pip install -i https://test.pypi.org/simple/ detectzoo_anon
 ```
 
 or install from source with all dependencies:
@@ -22,19 +26,6 @@ or install from source with all dependencies:
 git clone https://github.com/sadjadeb/detectzoo.git
 cd detectzoo
 pip install -e ".[all]"
-```
-
-### Optional extras
-
-Install only the dependencies you need:
-
-```bash
-pip install detectzoo[all]     # all dependencies
-pip install detectzoo[text]    # transformers, accelerate
-pip install detectzoo[image]   # torchvision, Pillow, open-clip-torch
-pip install detectzoo[audio]   # torchaudio, librosa, soundfile
-pip install detectzoo[eval]    # scikit-learn, matplotlib
-pip install detectzoo[dev]     # all + pytest, ruff
 ```
 
 ---
