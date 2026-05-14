@@ -34,6 +34,8 @@ def compute_metrics(
         scores: Detector scores (higher → more likely AI).
         threshold: Decision threshold for deriving predicted labels.
 
+    Samples with NaN or infinite scores are omitted from metric computation.
+
     Returns:
         Dictionary with ``accuracy``, ``precision``, ``recall``, ``f1``,
         ``tpr``, ``fpr``, ``roc_auc``, ``pr_auc``, and ``avg_precision``.
@@ -49,7 +51,6 @@ def compute_metrics(
             precision_score,
             recall_score,
             roc_auc_score,
-            roc_curve,
         )
     except ImportError as exc:
         raise ImportError(
@@ -59,32 +60,52 @@ def compute_metrics(
 
     labels_arr = np.asarray(labels, dtype=int)
     scores_arr = np.asarray(scores, dtype=float)
-    preds = (scores_arr >= threshold).astype(int)
+
+    finite = np.isfinite(scores_arr)
+    labels_fit = labels_arr[finite]
+    scores_fit = scores_arr[finite]
+
+    # Threshold metrics only where score is finite (NaN/inf would break ROC/PR sklearn calls).
+    if labels_fit.size == 0:
+        return {
+            "accuracy": float("nan"),
+            "precision": float("nan"),
+            "recall": float("nan"),
+            "f1": float("nan"),
+            "tpr": float("nan"),
+            "fpr": float("nan"),
+            "roc_auc": float("nan"),
+            "pr_auc": float("nan"),
+            "avg_precision": float("nan"),
+            "eer": float("nan"),
+        }
+
+    preds = (scores_fit >= threshold).astype(int)
 
     # Use confusion_matrix with fixed label order to stay safe even if
     # one class is absent at this threshold.
-    cm = confusion_matrix(labels_arr, preds, labels=[0, 1])
+    cm = confusion_matrix(labels_fit, preds, labels=[0, 1])
     tn, fp, fn, tp = cm.ravel()
     tpr_val = float(tp / (tp + fn)) if (tp + fn) > 0 else 0.0
     fpr_val = float(fp / (fp + tn)) if (fp + tn) > 0 else 0.0
 
     results: Dict[str, Any] = {
-        "accuracy": float(accuracy_score(labels_arr, preds)),
-        "precision": float(precision_score(labels_arr, preds, zero_division=0)),
-        "recall": float(recall_score(labels_arr, preds, zero_division=0)),
-        "f1": float(f1_score(labels_arr, preds, zero_division=0)),
+        "accuracy": float(accuracy_score(labels_fit, preds)),
+        "precision": float(precision_score(labels_fit, preds, zero_division=0)),
+        "recall": float(recall_score(labels_fit, preds, zero_division=0)),
+        "f1": float(f1_score(labels_fit, preds, zero_division=0)),
         "tpr": tpr_val,
         "fpr": fpr_val,
     }
 
-    if len(np.unique(labels_arr)) > 1:
-        results["roc_auc"] = float(roc_auc_score(labels_arr, scores_arr))
+    if len(np.unique(labels_fit)) > 1:
+        results["roc_auc"] = float(roc_auc_score(labels_fit, scores_fit))
 
-        precision, recall, _ = precision_recall_curve(labels_arr, scores_arr)
+        precision, recall, _ = precision_recall_curve(labels_fit, scores_fit)
         results["pr_auc"] = float(auc(recall, precision))
 
-        results["avg_precision"] = float(average_precision_score(labels_arr, scores_arr))
-        results["eer"] = _compute_eer(labels_arr, scores_arr)
+        results["avg_precision"] = float(average_precision_score(labels_fit, scores_fit))
+        results["eer"] = _compute_eer(labels_fit, scores_fit)
     else:
         results["roc_auc"] = float("nan")
         results["pr_auc"] = float("nan")
