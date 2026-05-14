@@ -64,7 +64,7 @@ DEFAULT_DETECTOR_NAMES: List[str] = [
 GECSCORE_OWNER_REPO = "NLP2CT/GECScore"
 GECSCORE_API_BASE = f"https://api.github.com/repos/{GECSCORE_OWNER_REPO}/contents/data/normal_data"
 GECSCORE_RAW_BASE = (
-    "https://raw.githubusercontent.com/{GECSCORE_OWNER_REPO}/"
+    f"https://raw.githubusercontent.com/{GECSCORE_OWNER_REPO}/"
     "refs/heads/main/data/normal_data"
 )
 
