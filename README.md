@@ -179,38 +179,6 @@ metrics = compute_metrics(
 # {'accuracy': 1.0, 'precision': 1.0, 'recall': 1.0, 'f1': 1.0, 'tpr': 1.0, 'fpr': 0.0, 'roc_auc': 1.0, 'pr_auc': 1.0, 'avg_precision': 1.0}
 ```
 
----
-
-## Features
-
-* **Multimodal detection**
-
-  * Text (LLM-generated text)
-  * Images (diffusion / GAN generated images)
-  * Audio (synthetic speech / deepfake audio)
-
-* **Unified API**
-
-  * Consistent interface across all detectors — every detector returns a `DetectionResult` with a score, label, confidence, and metadata
-
-* **Reproducible implementations**
-
-  * Clean implementations of published detection methods
-
-* **Benchmark-ready**
-
-  * Built-in dataset loaders and an evaluation pipeline for comparing detectors
-
-* **Modular architecture**
-
-  * You can easily add a new detector by subclassing `BaseDetector` and registering it with the `register_detector` decorator.
-
-* **Lightweight and research-friendly**
-
-  * Optional dependencies per modality — install only what you need from the following: text, image, audio, eval.
-
----
-
 
 ## Design Philosophy
 
@@ -274,15 +242,3 @@ We welcome community contributions. You can contribute by:
 * Adding benchmark datasets
 * Improving documentation
 * Reporting issues and suggesting features
-
----
-
-## Roadmap
-
-Planned improvements include:
-
-* More detectors for each modality
-* Pre-trained weights for detectors
-* Training scripts and configuration files
-* Leaderboard generation
-* Visualization tools for detection scores and attention maps
