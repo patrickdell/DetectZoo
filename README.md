@@ -20,12 +20,20 @@ For the sake of anonymity, we put the package on TestPyPI and you can install it
 pip install -i https://test.pypi.org/simple/ detectzoo_anon
 ```
 
-or install from source with all dependencies:
+or install from source:
 
 ```bash
 git clone https://github.com/sadjadeb/detectzoo.git
 cd detectzoo
-pip install -e ".[all]"
+pip install -e .
+```
+
+Optional extras:
+
+```bash
+pip install -e ".[image,audio]"      # everything for image + audio detectors
+pip install detectzoo[datasets]     # when you need ModelScope / gdown-based downloads
+pip install -e ".[dev]"             # contributors
 ```
 
 ---
