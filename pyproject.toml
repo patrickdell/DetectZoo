@@ -34,6 +34,7 @@ text = [
     "accelerate>=0.20",
     "datasets>=2.14",
     "scipy>=1.10",
+    "rouge>=rouge==1.0.1",
 ]
 image = [
     "torchvision>=0.15",
