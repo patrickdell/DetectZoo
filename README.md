@@ -23,7 +23,7 @@ pip install -i https://test.pypi.org/simple/ detectzoo_anon
 or install from source:
 
 ```bash
-git clone https://github.com/sadjadeb/detectzoo.git
+git clone https://anonymous.4open.science/r/DetectZoo-1BEC/
 cd detectzoo
 pip install -e .
 ```
