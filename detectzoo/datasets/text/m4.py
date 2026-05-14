@@ -65,6 +65,18 @@ _ALL_DOMAINS = tuple(sorted({d for _, d, _ in _FILES}))
 _ALL_MODELS = tuple(sorted({m for _, _, m in _FILES}))
 
 
+def _as_text_field(val: Any) -> str:
+    """Normalize M4 JSON text fields to str (some rows use list of segments/tokens)."""
+    if val is None:
+        return ""
+    if isinstance(val, str):
+        return val
+    if isinstance(val, list):
+        parts = [str(x).strip() for x in val if x is not None and str(x).strip()]
+        return " ".join(parts)
+    return str(val).strip()
+
+
 @register_dataset("m4")
 class M4Dataset(BaseDataset):
     """M4 dataset for multi-generator / multi-domain / multi-lingual
@@ -202,7 +214,7 @@ class M4Dataset(BaseDataset):
                 row_model = row.get("model", model)
 
                 if self.include_human:
-                    human_text = row.get("human_text", "")
+                    human_text = _as_text_field(row.get("human_text", ""))
                     if human_text:
                         items.append(DatasetItem(
                             data=human_text,
@@ -216,7 +228,7 @@ class M4Dataset(BaseDataset):
                             },
                         ))
                 if self.include_machine:
-                    machine_text = row.get("machine_text", "")
+                    machine_text = _as_text_field(row.get("machine_text", ""))
                     if machine_text:
                         items.append(DatasetItem(
                             data=machine_text,
