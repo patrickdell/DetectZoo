@@ -1,8 +1,8 @@
 """DetectZoo: A unified toolkit for detecting AI-generated content."""
 
-from detectzoo.utils.hf_quiet import configure_hf_quiet
-
-configure_hf_quiet()
+# isort: off
+import detectzoo.utils.hf_quiet  # noqa: F401
+# isort: on
 
 # Eager-load modality subpackages so @register_detector / @register_dataset run.
 import detectzoo.datasets.audio  # noqa: F401
