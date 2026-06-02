@@ -105,8 +105,12 @@ class _D3Model(nn.Module):
     def _shuffle_patches(x: torch.Tensor, patch_size: int) -> torch.Tensor:
         patches = F.unfold(x, kernel_size=patch_size, stride=patch_size)
         shuffled = patches[:, :, torch.randperm(patches.size(-1))]
-        return F.fold(shuffled, output_size=(x.shape[2], x.shape[3]),
-                      kernel_size=patch_size, stride=patch_size)
+        return F.fold(
+            shuffled,
+            output_size=(x.shape[2], x.shape[3]),
+            kernel_size=patch_size,
+            stride=patch_size,
+        )
 
     def _encode_penultimate(self, x: torch.Tensor) -> torch.Tensor:
         self.clip(x)
@@ -120,9 +124,9 @@ class _D3Model(nn.Module):
         features: list[torch.Tensor] = []
         with torch.no_grad():
             for _ in range(self.shuffle_times):
-                features.append(self._encode_penultimate(
-                    self._shuffle_patches(x, self.patch_size[0])
-                ))
+                features.append(
+                    self._encode_penultimate(self._shuffle_patches(x, self.patch_size[0]))
+                )
             for _ in range(self.original_times):
                 features.append(self._encode_penultimate(x))
         stacked = torch.stack(features, dim=-2)
@@ -172,7 +176,9 @@ class D3Detector(BaseDetector):
             download_file(_CKPT_URL, self._ckpt)
 
         self._model = _D3Model(
-            shuffle_times=shuffle_times, original_times=1, patch_size=patch_size,
+            shuffle_times=shuffle_times,
+            original_times=1,
+            patch_size=patch_size,
         )
 
         head_state = torch.load(self._ckpt, map_location=self._device, weights_only=False)
@@ -181,11 +187,13 @@ class D3Detector(BaseDetector):
         self._model.attention_head.load_state_dict(head_state, strict=True)
         self._model.to(self._device).eval()
 
-        self._transform = transforms.Compose([
-            transforms.CenterCrop(224),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=_CLIP_MEAN, std=_CLIP_STD),
-        ])
+        self._transform = transforms.Compose(
+            [
+                transforms.CenterCrop(224),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=_CLIP_MEAN, std=_CLIP_STD),
+            ]
+        )
 
     # ------------------------------------------------------------------
     # Input handling
@@ -198,8 +206,7 @@ class D3Detector(BaseDetector):
         if path.is_file():
             return load_image(path)
         raise TypeError(
-            "Expected a PIL Image or a path to an image file; got "
-            f"{type(input_data).__name__}."
+            f"Expected a PIL Image or a path to an image file; got {type(input_data).__name__}."
         )
 
     # ------------------------------------------------------------------

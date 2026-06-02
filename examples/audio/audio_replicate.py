@@ -215,9 +215,7 @@ def main() -> None:
     n_ai = sum(1 for it in items if it.label == 1)
     print(f"  loaded {n} items (bonafide={n_h}, spoof={n_ai})")
     if n_h == 0 or n_ai == 0:
-        print(
-            "  [WARN] Single-class eval set — EER / ROC-AUC will be undefined (NaN)."
-        )
+        print("  [WARN] Single-class eval set — EER / ROC-AUC will be undefined (NaN).")
 
     print(f"\nLoading {len(args.detectors)} detector(s) on {args.device} …")
     detectors: List[Any] = []

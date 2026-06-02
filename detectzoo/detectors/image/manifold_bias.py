@@ -49,8 +49,8 @@ def _resize_and_crop(img_t: torch.Tensor, siz: int) -> torch.Tensor:
     start_x = (img_t.size(-1) - siz) // 2
     start_y = (img_t.size(-2) - siz) // 2
     if img_t.dim() == 3:
-        return img_t[:, start_y:start_y + siz, start_x:start_x + siz]
-    return img_t[:, :, start_y:start_y + siz, start_x:start_x + siz]
+        return img_t[:, start_y : start_y + siz, start_x : start_x + siz]
+    return img_t[:, :, start_y : start_y + siz, start_x : start_x + siz]
 
 
 def _normalize_batch(batch: torch.Tensor, epsilon: float = _DEFAULT_EPSILON) -> torch.Tensor:
@@ -61,6 +61,7 @@ def _normalize_batch(batch: torch.Tensor, epsilon: float = _DEFAULT_EPSILON) -> 
 
 def _pil_to_raw_tensor(img: Image.Image) -> torch.Tensor:
     import numpy as np
+
     return torch.from_numpy(np.array(img.convert("RGB")))
 
 
@@ -105,6 +106,7 @@ def _decode_in_subbatches(
 # ---------------------------------------------------------------------------
 # Detector
 # ---------------------------------------------------------------------------
+
 
 @register_detector("manifold_bias", aliases=["mib", "manifold_induced_bias", "brokman2025"])
 class ManifoldBiasDetector(BaseDetector):
@@ -155,14 +157,16 @@ class ManifoldBiasDetector(BaseDetector):
         **kwargs: Any,
     ) -> None:
         # Pass threshold=0.0 to BaseDetector as a placeholder, we override it below.
-        super().__init__(threshold=threshold if threshold is not None else 0.0, device=device, **kwargs)
+        super().__init__(
+            threshold=threshold if threshold is not None else 0.0, device=device, **kwargs
+        )
         self._calibrated = threshold is not None
         if threshold is not None:
             self.threshold = threshold
 
         self.sd_repo = sd_repo
         self.clip_repo = clip_repo
-        self.caption_model_name  = caption_model
+        self.caption_model_name = caption_model
         self.num_noise = int(num_noise)
         self.time_frac = float(time_frac)
         self.image_size = int(image_size)
@@ -223,9 +227,9 @@ class ManifoldBiasDetector(BaseDetector):
     def _load_sd(self) -> None:
         from diffusers import DDPMScheduler, StableDiffusionPipeline
 
-        pipe = StableDiffusionPipeline.from_pretrained(
-            self.sd_repo, torch_dtype=self._dtype
-        ).to(self._device)
+        pipe = StableDiffusionPipeline.from_pretrained(self.sd_repo, torch_dtype=self._dtype).to(
+            self._device
+        )
         self._unet = pipe.unet.eval()
         self._vae = pipe.vae.eval()
         self._tokenizer = pipe.tokenizer
@@ -235,13 +239,17 @@ class ManifoldBiasDetector(BaseDetector):
 
     def _load_clip(self) -> None:
         from transformers import AutoImageProcessor, CLIPModel
+
         self._clip = CLIPModel.from_pretrained(self.clip_repo).to(self._device).eval()
         self._clip_processor = AutoImageProcessor.from_pretrained(self.clip_repo)
 
     def _load_captioner(self) -> None:
         from transformers import pipeline as hf_pipeline
+
         self._captioner = hf_pipeline(
-            "image-to-text", model=self.caption_model_name, device=self._device,
+            "image-to-text",
+            model=self.caption_model_name,
+            device=self._device,
         )
 
     @property
@@ -290,7 +298,11 @@ class ManifoldBiasDetector(BaseDetector):
         if prompt is not None:
             return prompt
         result = self.captioner(pil_img, max_new_tokens=64)
-        text = result[0].get("generated_text", "") if isinstance(result, list) and result else str(result)
+        text = (
+            result[0].get("generated_text", "")
+            if isinstance(result, list) and result
+            else str(result)
+        )
         return text.strip() or "a photograph"
 
     # ------------------------------------------------------------------
@@ -308,7 +320,7 @@ class ManifoldBiasDetector(BaseDetector):
         return feats.detach().cpu()
 
     def _compute_criterion(self, pil_img: Image.Image, prompt: str) -> dict[str, float]:
-        _ = self.unet   # ensure SD is loaded
+        _ = self.unet  # ensure SD is loaded
 
         K = self.num_noise
         siz = self.image_size
@@ -334,8 +346,11 @@ class ManifoldBiasDetector(BaseDetector):
 
         # 4. Text conditioning
         tokens = self._tokenizer(
-            [prompt] * K, padding="max_length", max_length=77,
-            truncation=True, return_tensors="pt",
+            [prompt] * K,
+            padding="max_length",
+            max_length=77,
+            truncation=True,
+            return_tensors="pt",
         )
         with torch.no_grad():
             text_emb = self._text_encoder(tokens.input_ids.to(self._device)).last_hidden_state
@@ -349,7 +364,7 @@ class ManifoldBiasDetector(BaseDetector):
         dec_noise, dec_sphere = _decode_in_subbatches(
             self._vae, noise_pred_scaled, sphere / self._vae.config.scaling_factor
         )
-        dec_noise_pp = _postprocess_decoded(dec_noise,  siz)
+        dec_noise_pp = _postprocess_decoded(dec_noise, siz)
         dec_sphere_pp = _postprocess_decoded(dec_sphere, siz)
 
         # 7. CLIP embeddings
@@ -360,7 +375,7 @@ class ManifoldBiasDetector(BaseDetector):
         clip_sphere = self._clip_features(dec_sphere_pp)
 
         # 8. 3 criterion terms
-        bias_vec = self._cos(clip_orig,   clip_dnoise).numpy()
+        bias_vec = self._cos(clip_orig, clip_dnoise).numpy()
         kappa_vec = self._cos(clip_dnoise, clip_sphere).numpy()
         D_vec = torch.norm(clip_dnoise, p=2, dim=1).numpy()
 
@@ -369,16 +384,16 @@ class ManifoldBiasDetector(BaseDetector):
         D_mean = float(D_vec.mean())
 
         # 9. Final criterion
-        sqrt_d = float(_CLIP_DIM ** 0.5)
+        sqrt_d = float(_CLIP_DIM**0.5)
         criterion = 1.0 + (sqrt_d * bias_mean - D_mean + kappa_mean) / (sqrt_d + 2.0)
 
         return {
             "criterion": criterion,
-            "bias_mean":  bias_mean,
+            "bias_mean": bias_mean,
             "kappa_mean": kappa_mean,
-            "D_mean":     D_mean,
-            "timestep":   t_abs,
-            "num_noise":  K,
+            "D_mean": D_mean,
+            "timestep": t_abs,
+            "num_noise": K,
         }
 
     # ------------------------------------------------------------------

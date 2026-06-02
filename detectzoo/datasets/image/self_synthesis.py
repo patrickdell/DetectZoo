@@ -99,7 +99,9 @@ class SelfSynthesisDataset(BaseDataset):
                 "Missing dependency `gdown`. Install with `pip install gdown`."
             ) from e
 
-        gdown.download_folder(_GDRIVE_GANGEN_FOLDER, output=str(dest_parent), quiet=False, use_cookies=False)
+        gdown.download_folder(
+            _GDRIVE_GANGEN_FOLDER, output=str(dest_parent), quiet=False, use_cookies=False
+        )
 
         if not self._finalize_gangen_layout(dest_parent, gens):
             raise RuntimeError(

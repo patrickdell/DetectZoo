@@ -100,7 +100,7 @@ def download_and_extract_tar(
     *,
     force: bool = False,
 ) -> Path:
-    """Download a tar archive (optionally gzip/bzip2/xz-compressed), extract it, and cache the result.
+    """Download a tar archive (gzip/bzip2/xz optional), extract it, and cache the result.
 
     A ``.download_complete`` marker file prevents re-downloading on
     subsequent calls.

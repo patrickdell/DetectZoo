@@ -65,8 +65,16 @@ class TestMetrics:
     def test_threshold_dependent_keys_present(self):
         m = compute_metrics([0, 1], [0.2, 0.8], threshold=0.5)
         for key in (
-            "accuracy", "precision", "recall", "f1", "tpr", "fpr",
-            "roc_auc", "pr_auc", "avg_precision", "eer",
+            "accuracy",
+            "precision",
+            "recall",
+            "f1",
+            "tpr",
+            "fpr",
+            "roc_auc",
+            "pr_auc",
+            "avg_precision",
+            "eer",
         ):
             assert key in m
 

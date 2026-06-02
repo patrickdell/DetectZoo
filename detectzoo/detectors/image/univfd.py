@@ -69,7 +69,9 @@ def _build_clip_linear(device: torch.device) -> _CLIPLinearModel:
         ) from e
 
     clip_model, _, _ = open_clip.create_model_and_transforms(
-        "ViT-L-14", pretrained="openai", device=device,
+        "ViT-L-14",
+        pretrained="openai",
+        device=device,
     )
     clip_model.eval()
     for param in clip_model.parameters():
@@ -144,8 +146,7 @@ class UnivFDDetector(BaseDetector):
         if path.is_file():
             return load_image(path)
         raise TypeError(
-            "Expected a PIL Image or a path to an image file; got "
-            f"{type(input_data).__name__}."
+            f"Expected a PIL Image or a path to an image file; got {type(input_data).__name__}."
         )
 
     # ------------------------------------------------------------------

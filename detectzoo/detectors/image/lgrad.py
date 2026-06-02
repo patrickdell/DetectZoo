@@ -66,6 +66,7 @@ def _raw_state_dict(ckpt: Any) -> dict[str, torch.Tensor]:
 
 def _download_from_gdrive(file_id: str, dest: Path) -> None:
     import gdown
+
     dest.parent.mkdir(parents=True, exist_ok=True)
     gdown.download(id=file_id, output=str(dest), quiet=True)
 
@@ -84,6 +85,7 @@ def _grad_chw_to_pil(grad: torch.Tensor) -> Image.Image:
 # ------------------------------------------------------------------
 # LGradDetector
 # ------------------------------------------------------------------
+
 
 @register_detector("lgrad", aliases=["lgrad_cvpr2023", "learning_on_gradients"])
 class LGradDetector(BaseDetector):
@@ -167,8 +169,7 @@ class LGradDetector(BaseDetector):
         if path.is_file():
             return load_image(path)
         raise TypeError(
-            "Expected a PIL Image or a path to an image file; got "
-            f"{type(input_data).__name__}."
+            f"Expected a PIL Image or a path to an image file; got {type(input_data).__name__}."
         )
 
     def _img2grad_pil(self, pil: Image.Image) -> Image.Image:

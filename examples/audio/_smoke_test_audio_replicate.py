@@ -1,4 +1,5 @@
 """Smoke test reproducibility/audio/audio_replicate.py (run manually, not part of CI)."""
+
 from __future__ import annotations
 
 import csv
@@ -130,7 +131,11 @@ def main() -> int:
                 items = ds.load()
                 assert_balanced(items, cap)
                 n0 = sum(i.label == 0 for i in items)
-                print(f"[OK] load_dataset {name} max_samples={cap} -> {len(items)} ({n0}+{len(items)-n0})")
+                n1 = len(items) - n0
+                print(
+                    f"[OK] load_dataset {name} max_samples={cap} -> {len(items)} "
+                    f"({n0}+{n1})"
+                )
             except Exception as exc:
                 errors.append(f"load_dataset {name} n={cap}: {exc}")
 
@@ -190,7 +195,9 @@ def main() -> int:
         ]
         if ds_name == "deepfake_eval_2024":
             argv.extend(["--split", "test"])
-        with patch.object(mod, "load_detector", side_effect=lambda name, **kw: MockAudioDetector(**kw)):
+        with patch.object(
+            mod, "load_detector", side_effect=lambda name, **kw: MockAudioDetector(**kw)
+        ):
             with patch.object(sys, "argv", argv):
                 mod.main()
 

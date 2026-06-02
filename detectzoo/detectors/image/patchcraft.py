@@ -28,16 +28,18 @@ from detectzoo.detectors.image.resnet50_binary import load_pytorch_checkpoint
 from detectzoo.utils.io import load_image
 
 _DEFAULT_CKPT_NAME = "RPTC.pth"
-_HF_REPO_ID        = "slxhere/PatchCraft"
-_UPSTREAM_WEIGHTS  = "https://fdmas.github.io/AIGCDetect/"
+_HF_REPO_ID = "slxhere/PatchCraft"
+_UPSTREAM_WEIGHTS = "https://fdmas.github.io/AIGCDetect/"
 
 
 # ---------------------------------------------------------------------------
 # SRM high-pass filters
 # ---------------------------------------------------------------------------
 
+
 def _srm_hpf_weights() -> torch.Tensor:
     from detectzoo.detectors.image.srm_filter_kernel import all_normalized_hpf_list
+
     hpf_5x5 = []
     for h in all_normalized_hpf_list:
         if h.shape[0] == 3:
@@ -59,6 +61,7 @@ class _HPF(nn.Module):
 # ---------------------------------------------------------------------------
 # RPTC network
 # ---------------------------------------------------------------------------
+
 
 def _conv_bn_relu(ch: int) -> nn.Sequential:
     return nn.Sequential(nn.Conv2d(ch, ch, 3, padding=1), nn.BatchNorm2d(ch), nn.ReLU())
@@ -136,7 +139,7 @@ class RPTCNet(nn.Module):
 
 
 def _load_weights(model: nn.Module, ckpt: Path, device: torch.device) -> None:
-    raw   = load_pytorch_checkpoint(ckpt, device)
+    raw = load_pytorch_checkpoint(ckpt, device)
     state = raw.get("model") or raw.get("netC") or raw if isinstance(raw, dict) else raw
     state = {k.replace("module.", "").removeprefix("model."): v for k, v in state.items()}
     model.load_state_dict(state, strict=True)
@@ -145,6 +148,7 @@ def _load_weights(model: nn.Module, ckpt: Path, device: torch.device) -> None:
 # ---------------------------------------------------------------------------
 # RPTC patch preprocessing
 # ---------------------------------------------------------------------------
+
 
 def _edge_density(img: torch.Tensor) -> float:
     return float(
@@ -155,37 +159,42 @@ def _edge_density(img: torch.Tensor) -> float:
     )
 
 
-def _processing_rptc(img: Image.Image, *, load_size: int, patch_num: int, seed: int) -> torch.Tensor:
-    num_block  = 2 ** patch_num
+def _processing_rptc(
+    img: Image.Image, *, load_size: int, patch_num: int, seed: int
+) -> torch.Tensor:
+    num_block = 2**patch_num
     patch_size = load_size // num_block
 
     if min(img.size) < patch_size:
         img = transforms.Resize((patch_size, patch_size))(img)
 
-    x   = transforms.ToTensor()(img)
+    x = transforms.ToTensor()(img)
     _, h, w = x.shape
     rng = Random(seed)
 
     crops = sorted(
         [
-            (x[:, cy:cy + patch_size, cx:cx + patch_size],
-             _edge_density(x[:, cy:cy + patch_size, cx:cx + patch_size]))
+            (
+                x[:, cy : cy + patch_size, cx : cx + patch_size],
+                _edge_density(x[:, cy : cy + patch_size, cx : cx + patch_size]),
+            )
             for _ in range(num_block * num_block * 3)
-            for cx, cy in [(
-                rng.randrange(0, max(1, w - patch_size + 1)),
-                rng.randrange(0, max(1, h - patch_size + 1)),
-            )]
+            for cx, cy in [
+                (
+                    rng.randrange(0, max(1, w - patch_size + 1)),
+                    rng.randrange(0, max(1, h - patch_size + 1)),
+                )
+            ]
         ],
         key=lambda t: t[1],
     )
 
     def _fill(indices) -> torch.Tensor:
         t = torch.zeros(3, load_size, load_size, dtype=x.dtype)
-        for k, (ii, jj) in enumerate(
-            (i, j) for i in range(num_block) for j in range(num_block)
-        ):
-            t[:, ii * patch_size:(ii + 1) * patch_size,
-                 jj * patch_size:(jj + 1) * patch_size] = crops[indices[k]][0]
+        for k, (ii, jj) in enumerate((i, j) for i in range(num_block) for j in range(num_block)):
+            t[
+                :, ii * patch_size : (ii + 1) * patch_size, jj * patch_size : (jj + 1) * patch_size
+            ] = crops[indices[k]][0]
         return t
 
     n = num_block * num_block
@@ -195,6 +204,7 @@ def _processing_rptc(img: Image.Image, *, load_size: int, patch_num: int, seed: 
 # ---------------------------------------------------------------------------
 # Detector
 # ---------------------------------------------------------------------------
+
 
 @register_detector("patchcraft", aliases=["patch_craft", "patchcraft_detector"])
 class PatchCraftDetector(BaseDetector):
@@ -235,9 +245,9 @@ class PatchCraftDetector(BaseDetector):
         super().__init__(threshold=threshold, device=device, **kwargs)
         self.load_size = int(load_size)
         self.patch_num = int(patch_num)
-        self.seed      = int(seed)
+        self.seed = int(seed)
 
-        cache      = get_cache_dir("patchcraft", cache_dir)
+        cache = get_cache_dir("patchcraft", cache_dir)
         self._ckpt = (
             Path(checkpoint_path).expanduser().resolve()
             if checkpoint_path is not None
@@ -253,6 +263,7 @@ class PatchCraftDetector(BaseDetector):
 
     def _ensure_download(self, cache: Path) -> None:
         from huggingface_hub import hf_hub_download
+
         self._ckpt = Path(
             hf_hub_download(repo_id=_HF_REPO_ID, filename=_DEFAULT_CKPT_NAME, cache_dir=str(cache))
         )
@@ -272,12 +283,16 @@ class PatchCraftDetector(BaseDetector):
 
     @torch.no_grad()
     def predict(self, input_data: Any) -> DetectionResult:
-        x = _processing_rptc(
-            self._normalize_input(input_data),
-            load_size=self.load_size,
-            patch_num=self.patch_num,
-            seed=self.seed,
-        ).unsqueeze(0).to(self._device)
+        x = (
+            _processing_rptc(
+                self._normalize_input(input_data),
+                load_size=self.load_size,
+                patch_num=self.patch_num,
+                seed=self.seed,
+            )
+            .unsqueeze(0)
+            .to(self._device)
+        )
         score = self._model(x).sigmoid().item()
         return self._make_result(
             float(score),

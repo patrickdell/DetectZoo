@@ -43,7 +43,8 @@ class DRCT2MDataset(BaseDataset):
     Parameters
     ----------
     split : str, optional
-        If provided, look under ``<root>/<split>/`` first (common values: ``train``, ``val``, ``test``).
+        If provided, look under ``<root>/<split>/`` first (e.g. ``train``, ``val``,
+        ``test``).
         If omitted, scan the full dataset root for any ``0_real`` / ``1_fake`` pairs.
     root : str or Path, optional
         Download/extract location. When omitted, uses ``.detectzoo_data/drct2m/``.
@@ -117,4 +118,3 @@ class DRCT2MDataset(BaseDataset):
                 return items
 
         return items
-
