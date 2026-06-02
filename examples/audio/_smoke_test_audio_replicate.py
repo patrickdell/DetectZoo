@@ -6,16 +6,14 @@ import importlib.util
 import inspect
 import json
 import random
-import sys
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
 
-REPO = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO))
-
 from detectzoo import load_dataset
 from detectzoo.core.base import BaseDetector, DetectionResult
+
+REPO = Path(__file__).resolve().parents[2]
 
 SCRIPT = REPO / "reproducibility" / "audio" / "audio_replicate.py"
 spec = importlib.util.spec_from_file_location("audio_replicate", SCRIPT)

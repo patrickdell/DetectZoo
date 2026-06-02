@@ -13,9 +13,9 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
-from detectzoo.datasets._download import extract_tar_archive
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets._download import extract_tar_archive
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _DEFAULT_GENERATORS: Tuple[str, ...] = (
     "AttGAN",

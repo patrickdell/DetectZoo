@@ -18,7 +18,7 @@ from __future__ import annotations
 import math
 from collections import OrderedDict
 from pathlib import Path
-from typing import Any, Tuple, Union
+from typing import Any
 
 import numpy as np
 import torch

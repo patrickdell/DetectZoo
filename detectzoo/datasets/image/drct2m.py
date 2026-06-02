@@ -10,7 +10,7 @@ ModelScope dataset: ``BokingChen/DRCT-2M``
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Iterable, List, Sequence, Tuple
 
 from detectzoo.core.registry import register_dataset
 from detectzoo.datasets.base import BaseDataset, DatasetItem

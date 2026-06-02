@@ -15,8 +15,8 @@ from pathlib import Path
 from typing import Any, List, Optional, Sequence, Tuple
 
 from detectzoo.core.registry import register_dataset
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.datasets._download import extract_tar_archive, get_cache_dir
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _IMAGE_EXTS = frozenset({".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff"})
 

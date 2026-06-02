@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import argparse
 import random
-import sys
 import traceback
 from datetime import datetime
 from pathlib import Path

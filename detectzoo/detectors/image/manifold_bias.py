@@ -33,7 +33,6 @@ from detectzoo.core.base import BaseDetector, DetectionResult
 from detectzoo.core.registry import register_detector
 from detectzoo.utils.io import load_image
 
-
 _SD_REPO = "CompVis/stable-diffusion-v1-4"
 _CLIP_REPO = "openai/clip-vit-large-patch14"
 _CAPTION_MODEL = "Salesforce/blip-image-captioning-base"

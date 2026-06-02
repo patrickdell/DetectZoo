@@ -21,8 +21,8 @@ import zipfile
 from pathlib import Path
 from typing import Any, List, Optional, Sequence, Tuple
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _MODELSCOPE_AIGCDETECT_DATASET: str = "aemilia/AIGCDetectionBenchmark"
 
@@ -248,7 +248,6 @@ class AIGCDetectDataset(BaseDataset):
         self._resolved_root: Optional[Path] = None
 
     def _data_root(self) -> Path:
-        from detectzoo.datasets._download import get_cache_dir
 
         if self._resolved_root is not None:
             return self._resolved_root

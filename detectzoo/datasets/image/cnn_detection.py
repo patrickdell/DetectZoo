@@ -13,8 +13,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import List, Optional, Sequence, Tuple
 
-from detectzoo.datasets.base import BaseDataset, DatasetItem
 from detectzoo.core.registry import register_dataset
+from detectzoo.datasets.base import BaseDataset, DatasetItem
 
 _SPLITS: Tuple[str, ...] = ("train", "val", "test")
 SPLIT_TRAIN, SPLIT_VAL, SPLIT_TEST = _SPLITS
