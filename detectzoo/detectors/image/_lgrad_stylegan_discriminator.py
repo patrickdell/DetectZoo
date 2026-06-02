@@ -337,7 +337,7 @@ class ConvBlock(nn.Module):
                  activation_type='lrelu',
                  minibatch_std_group_size=0,
                  minibatch_std_channels=1):
-    
+
         super().__init__()
 
         if minibatch_std_group_size > 1:

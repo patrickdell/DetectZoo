@@ -32,7 +32,7 @@ from detectzoo.utils.io import load_image
 
 _IMAGENET   = dict(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 _CKPT_NAME  = "ForenSynth_LaDeDa.pth"
-_GDRIVE_ID  = "1KxNdnPRJJTuqxmzBPiGsg43tXzO8AN2d" 
+_GDRIVE_ID  = "1KxNdnPRJJTuqxmzBPiGsg43tXzO8AN2d"
 _PATCH_SIZE = 9
 _LOAD_SIZE = 256
 
@@ -165,7 +165,7 @@ class LaDeDaDetector(BaseDetector):
     patch_size : int
         Local receptive-field size in pixels (default 9, matching the paper).
     load_size : int or None
-        Resize each image to ``load_size × load_size`` before inference.  
+        Resize each image to ``load_size × load_size`` before inference.
         Pass ``None`` to keep the original image size.
     threshold : float
         Decision boundary (default 0.5).
@@ -248,7 +248,7 @@ class LaDeDaDetector(BaseDetector):
 
     # --------------------------------------------------------------------------    -------------------------------------------
     # Inference
-    # --------------------------------------------------------------------------    ------------------------------------------- 
+    # --------------------------------------------------------------------------    -------------------------------------------
 
     @torch.no_grad()
     def predict(self, input_data: Any) -> DetectionResult:

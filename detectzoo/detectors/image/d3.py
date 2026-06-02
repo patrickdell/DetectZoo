@@ -5,10 +5,10 @@ Reference:
     CVPR 2025.
     https://arxiv.org/abs/2404.04584
 
-The key idea: detects AI-generated images by modeling discrepancies at three levels: 
-pixel (data), feature distribution, and generation dynamics.It utilizes a dual-branch 
-approach where CLIP ViT-L/14 processes both the original image and a patch-shuffled 
-version.  A learned transformer attention head aggregates penultimate-layer features 
+The key idea: detects AI-generated images by modeling discrepancies at three levels:
+pixel (data), feature distribution, and generation dynamics.It utilizes a dual-branch
+approach where CLIP ViT-L/14 processes both the original image and a patch-shuffled
+version.  A learned transformer attention head aggregates penultimate-layer features
 from both views, using the discrepancy between intact and distorted representations.
 
 Upstream: https://github.com/BigAandSmallq/D3
@@ -41,7 +41,7 @@ _PENULTIMATE_DIM = 1024  # ViT-L/14 pre-projection width
 
 class _TransformerAttention(nn.Module):
     """Transformer attention head for aggregating penultimate-layer features."""
-    
+
     def __init__(self, input_dim: int, output_dim: int, last_dim: int = 1) -> None:
         super().__init__()
         self.query = nn.Linear(input_dim, input_dim)
@@ -96,8 +96,8 @@ class _D3Model(nn.Module):
             if name == "ln_post":
                 mod.register_forward_hook(hook)
                 return
-    
-    # ------------------------------------------------------------------    
+
+    # ------------------------------------------------------------------
     # Distorting images
     # ------------------------------------------------------------------
 
@@ -201,7 +201,7 @@ class D3Detector(BaseDetector):
             "Expected a PIL Image or a path to an image file; got "
             f"{type(input_data).__name__}."
         )
-    
+
     # ------------------------------------------------------------------
     # Inference
     # ------------------------------------------------------------------

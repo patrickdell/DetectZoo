@@ -93,8 +93,8 @@ class SelfSynthesisDataset(BaseDataset):
             return
 
         try:
-            import gdown  
-        except Exception as e:  
+            import gdown
+        except Exception as e:
             raise ModuleNotFoundError(
                 "Missing dependency `gdown`. Install with `pip install gdown`."
             ) from e

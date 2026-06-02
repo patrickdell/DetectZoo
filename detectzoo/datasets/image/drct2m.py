@@ -98,7 +98,7 @@ class DRCT2MDataset(BaseDataset):
         for split_name, search_root in self._candidate_search_roots(base):
             if not search_root.exists():
                 continue
-                
+
             for root in _find_split_roots(search_root):
                 real_dir, fake_dir = root / "0_real", root / "1_fake"
                 rel = str(root.relative_to(base)) if root.is_relative_to(base) else str(root)

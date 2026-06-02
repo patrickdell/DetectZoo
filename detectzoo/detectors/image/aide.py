@@ -4,10 +4,10 @@ Reference:
     Yan et al., "A Sanity Check for AI-generated Image Detection", ICLR 2025.
     https://arxiv.org/abs/2406.19435
 
-The key idea: combines two complementary branches: (1) SRM high-pass filtered + 
-DCT-selected frequency patches processed by dual ResNet-50 trunks to capture artifact 
+The key idea: combines two complementary branches: (1) SRM high-pass filtered +
+DCT-selected frequency patches processed by dual ResNet-50 trunks to capture artifact
 cues, and (2) a frozen OpenCLIP ConvNeXt-XXLarge trunk for robust semantic features.
-These signals are fused so the model jointly reasons over low-level artifacts and 
+These signals are fused so the model jointly reasons over low-level artifacts and
 high-level semantics for detection.
 
 Upstream: https://github.com/shilinyan99/AIDE
@@ -322,7 +322,7 @@ class AIDEDetector(BaseDetector):
         raise TypeError(
             "Expected a PIL Image or a path to an image file; got "
             f"{type(input_data).__name__}."
-        )   
+        )
 
     # ------------------------------------------------------------------
     # Inference

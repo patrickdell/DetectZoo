@@ -74,7 +74,7 @@ class ChameleonDataset(BaseDataset):
             return found
 
         import gdown
-        
+
         zip_path = dest / _ZIP_NAME
         if not zip_path.is_file():
             gdown.download(

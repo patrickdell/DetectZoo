@@ -7,7 +7,7 @@ The key idea: train a CNN on gradient-domain images (from the authors' img2grad 
 instead of RGB, so detector features capture generator-agnostic high-frequency traces.
 
 DetectZoo pipeline: By default ``input_mode="rgb"`` runs the official **PyTorch img2grad**
-path from the LGrad repo, then applies the ResNet-50 head. Use ``input_mode="gradient"`` 
+path from the LGrad repo, then applies the ResNet-50 head. Use ``input_mode="gradient"``
 only if ``data`` are already saved gradient PNGs.
 
 Upstream: https://github.com/chuangchuangtan/LGrad

@@ -5,9 +5,9 @@ Reference:
     of Generated Images", ICLR 2025.
     https://arxiv.org/abs/2504.15470
 
-The key idea: real and AI-generated images lie on slightly different data manifolds, and 
-generative models introduce subtle geometric biases. By measuring how well an image 
-aligns with the natural image manifold, the method detects fakes in a zero-shot, 
+The key idea: real and AI-generated images lie on slightly different data manifolds, and
+generative models introduce subtle geometric biases. By measuring how well an image
+aligns with the natural image manifold, the method detects fakes in a zero-shot,
 generator-agnostic way.
 
 Threshold calibration (required):
@@ -249,19 +249,19 @@ class ManifoldBiasDetector(BaseDetector):
     def unet(self) -> nn.Module:
         if self._unet is None:
             self._load_sd()
-        return self._unet 
+        return self._unet
 
     @property
     def vae(self) -> nn.Module:
         if self._vae is None:
             self._load_sd()
-        return self._vae 
+        return self._vae
 
     @property
     def clip(self) -> nn.Module:
         if self._clip is None:
             self._load_clip()
-        return self._clip 
+        return self._clip
 
     @property
     def clip_processor(self):

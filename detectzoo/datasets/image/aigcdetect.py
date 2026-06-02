@@ -219,7 +219,7 @@ class AIGCDetectDataset(BaseDataset):
     Parameters
     ----------
     root : str or Path, optional
-        Directory intended to contain partition folders, or a parent to search. 
+        Directory intended to contain partition folders, or a parent to search.
         When omitted, the default cache directory ``.detectzoo_data/aigcdetect/`` is used.
     partitions : sequence of str, optional
         Partition(s) to load. Each entry may be either a **column** name

@@ -5,7 +5,7 @@ Reference:
     Generative Models", CVPR 2023.
     https://arxiv.org/abs/2302.10174
 
-The key idea: Univ-FD uses pretrained CLIP image embeddings to represent images in a rich, 
+The key idea: Univ-FD uses pretrained CLIP image embeddings to represent images in a rich,
 semantic feature space. A simple linear classifier is trained on top to distinguish real vs fake.
 
 Upstream: https://github.com/WisconsinAIVision/UniversalFakeDetect
