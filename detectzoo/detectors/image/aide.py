@@ -118,8 +118,10 @@ class _DCTRecModule(nn.Module):
             w *= k
 
         _, idx = torch.sort(grade)
-        N = self.N
-        pick = lambda i: self.fold0(level_xu[i : i + 1].reshape(1, -1, 1))
+
+        def pick(i: torch.Tensor) -> torch.Tensor:
+            return self.fold0(level_xu[i : i + 1].reshape(1, -1, 1))
+
         return (
             pick(idx[0]),
             pick(torch.flip(idx, [0])[0]),
