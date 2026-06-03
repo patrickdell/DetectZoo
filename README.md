@@ -28,13 +28,13 @@ cd detectzoo
 pip install -e .
 ```
 
-Optional extras:
+Optional extra for contributors (`pytest`, `pytest-cov`, `ruff`):
 
 ```bash
-pip install -e ".[image,audio]"      # everything for image + audio detectors
-pip install detectzoo[datasets]     # when you need ModelScope / gdown-based downloads
-pip install -e ".[dev]"             # contributors
+pip install -e ".[dev]"
 ```
+
+The base install already includes dependencies for text, image, and audio detectors.
 
 ---
 
