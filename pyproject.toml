@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "detectzoo"
-version = "0.1.0"
+version = "0.1.4"
 description = "DetectZoo: A Unified Toolkit for AI-Generated Content Detection Across Text, Audio, and Image Modalities"
 readme = "README.md"
 requires-python = ">=3.9"
