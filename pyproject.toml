@@ -71,6 +71,7 @@ Issues = "https://anonymous.4open.science/r/DetectZoo-1BEC/issues"
 
 [tool.setuptools.packages.find]
 include = ["detectzoo*"]
+exclude = ["tests*"]
 
 [tool.ruff]
 line-length = 100
