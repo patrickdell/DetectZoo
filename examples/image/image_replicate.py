@@ -51,7 +51,7 @@ def parse_args():
     parser.add_argument("--detectors", nargs="+", required=True)
     parser.add_argument("--save-scores", action="store_true")
     parser.add_argument("--cpu", action="store_true")
-    parser.add_argument("--output-dir", type=Path, default=Path("results"))
+    parser.add_argument("--output-dir", type=Path, default=Path("experiments"))
     return parser.parse_args()
 
 
