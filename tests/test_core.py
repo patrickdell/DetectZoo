@@ -59,10 +59,25 @@ class TestRegistry:
         assert len(text) >= 18, f"Expected >=18 text detectors, got {sorted(text)}"
         # A representative, stable subset that should always exist.
         expected = {
-            "log_likelihood", "log_rank", "rank", "entropy", "detectgpt",
-            "fast_detectgpt", "binoculars", "lrr", "npr", "dna_gpt",
-            "revise_detect", "imbd", "lastde", "lastde_pp", "radar",
-            "text_fluoroscopy", "coco", "roberta_base", "roberta_large",
+            "log_likelihood",
+            "log_rank",
+            "rank",
+            "entropy",
+            "detectgpt",
+            "fast_detectgpt",
+            "binoculars",
+            "lrr",
+            "npr",
+            "dna_gpt",
+            "revise_detect",
+            "imbd",
+            "lastde",
+            "lastde_pp",
+            "radar",
+            "text_fluoroscopy",
+            "coco",
+            "roberta_base",
+            "roberta_large",
         }
         missing = expected - text
         assert not missing, f"Missing expected text detectors: {missing}"

@@ -59,7 +59,7 @@ def main() -> None:
 
     for label, text in samples:
         result = detector.predict(text)
-        print(f"  [{label}] \"{text[:60]}…\"")
+        print(f'  [{label}] "{text[:60]}…"')
         print(
             f"    score={result.score:.2f}  label={result.label}  "
             f"avg_word_length={result.metadata['avg_word_length']:.2f}\n"
