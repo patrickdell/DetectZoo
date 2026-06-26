@@ -11,8 +11,17 @@ import markdown
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from PIL import Image
 
 from detectzoo import load_detector
+
+# aeroblade runs a full Stable Diffusion VAE encode/decode + LPIPS-VGG
+# comparison with no internal resolution cap — a full-res phone photo
+# (e.g. 4000x3000) blew past available memory and silently killed the
+# container (no traceback, just a restart). Measured on the 7.7GB Haven
+# host: 512px peaks ~850MB, 768px climbs past 1.6GB and gets OOM-killed.
+# Capped well under that ceiling to leave headroom for concurrent requests.
+MAX_IMAGE_EDGE = 512
 
 app = FastAPI(title="DetectZoo")
 
@@ -71,10 +80,12 @@ def detect_text(text: str = Form(...)):
 @app.post("/api/detect/image")
 def detect_image(file: UploadFile = File(...)):
     detector = get_detector("image")
-    with tempfile.NamedTemporaryFile(suffix=Path(file.filename or "image").suffix) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp.flush()
-        result = detector.predict(tmp.name)
+    try:
+        img = Image.open(file.file).convert("RGB")
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not read image file.")
+    img.thumbnail((MAX_IMAGE_EDGE, MAX_IMAGE_EDGE), Image.Resampling.LANCZOS)
+    result = detector.predict(img)
     return _result_payload(result, "image")
 
 
