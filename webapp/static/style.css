@@ -205,9 +205,48 @@ textarea {
   min-height: 160px;
   resize: vertical;
 }
-input[type="file"] {
-  padding: 0.5rem;
-  min-height: 44px;
+.dropzone {
+  position: relative;
+  border: 2px dashed var(--rule-grey);
+  background: var(--white);
+  text-align: center;
+  padding: 1.75rem 1rem;
+  transition: border-color 0.1s ease, background-color 0.1s ease;
+}
+.dropzone.is-dragover {
+  border-color: var(--globe-red);
+  background: #faf5f5;
+}
+.dropzone-input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  overflow: hidden;
+}
+.dropzone-label {
+  display: block;
+  cursor: pointer;
+  color: var(--mid-grey);
+  font-size: 0.875rem;
+}
+.dropzone-label strong {
+  color: var(--globe-red);
+  font-family: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 0.8rem;
+}
+.dropzone-input:focus-visible + .dropzone-label {
+  outline: 3px solid var(--globe-red);
+  outline-offset: 2px;
+}
+.dropzone-filename {
+  margin: 0.6rem 0 0;
+  font-family: monospace;
+  font-size: 0.8rem;
+  color: var(--near-black);
+  min-height: 1.2em;
 }
 
 label.field-label {
@@ -289,6 +328,32 @@ button.primary:disabled {
 }
 .result dd {
   margin: 0;
+}
+
+.result .copy-row {
+  margin-top: 0.85rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--rule-grey);
+}
+button.copy-btn {
+  font-family: var(--label);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.72rem;
+  background: var(--white);
+  color: var(--near-black);
+  border: 1px solid var(--rule-grey);
+  border-radius: 0;
+  padding: 0.4rem 0.75rem;
+  cursor: pointer;
+  min-height: 36px;
+}
+button.copy-btn:hover {
+  border-color: var(--near-black);
+}
+button.copy-btn.copied {
+  border-color: #2e7d32;
+  color: #2e7d32;
 }
 
 .tag {
