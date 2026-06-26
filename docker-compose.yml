@@ -1,0 +1,12 @@
+services:
+  detectzoo:
+    build: .
+    container_name: detectzoo
+    restart: unless-stopped
+    ports:
+      - "8084:8000"
+    volumes:
+      - detectzoo_data:/data
+
+volumes:
+  detectzoo_data:

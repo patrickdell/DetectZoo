@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DetectZoo — AI Content Detection</title>
+<link rel="stylesheet" href="/static/style.css">
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+</head>
+<body>
+<div class="wrapper">
+  <header class="masthead">
+    <p class="eyebrow">AI Detection Toolkit</p>
+    <h1>DetectZoo</h1>
+    <p class="tagline">Test text, images, and audio for signs of AI generation using DetectZoo's open detector implementations.</p>
+    <nav class="site-nav">
+      <a href="/" class="site-nav-link active">Detect</a>
+      <a href="/about" class="site-nav-link">About</a>
+    </nav>
+  </header>
+
+  <main>
+    <nav class="tabs">
+      <button type="button" class="tab-btn active" data-tab="text">Text</button>
+      <button type="button" class="tab-btn" data-tab="image">Image</button>
+      <button type="button" class="tab-btn" data-tab="audio">Audio</button>
+    </nav>
+
+    <section class="panel active" id="panel-text">
+      <div class="card">
+        <div class="card-header">
+          <span>Text Detector: <span class="model-name">fast_detectgpt</span></span>
+        </div>
+        <div class="card-body">
+          <form id="form-text">
+            <label class="field-label" for="text-input">Paste text to analyze</label>
+            <textarea id="text-input" name="text" placeholder="Paste a paragraph or more here…" required></textarea>
+            <div class="actions">
+              <button class="primary" type="submit">Analyze</button>
+              <span class="status" data-status-for="text"></span>
+            </div>
+          </form>
+          <div class="result-slot" data-result-for="text"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-image">
+      <div class="card">
+        <div class="card-header">
+          <span>Image Detector: <span class="model-name">aeroblade</span></span>
+        </div>
+        <div class="card-body">
+          <form id="form-image">
+            <label class="field-label" for="image-input">Upload an image (PNG/JPG)</label>
+            <input id="image-input" name="file" type="file" accept="image/*" required>
+            <div class="actions">
+              <button class="primary" type="submit">Analyze</button>
+              <span class="status" data-status-for="image"></span>
+            </div>
+          </form>
+          <div class="result-slot" data-result-for="image"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="panel-audio">
+      <div class="card">
+        <div class="card-header">
+          <span>Audio Detector: <span class="model-name">rawnet2</span></span>
+        </div>
+        <div class="card-body">
+          <form id="form-audio">
+            <label class="field-label" for="audio-input">Upload an audio clip (WAV/FLAC)</label>
+            <input id="audio-input" name="file" type="file" accept="audio/*" required>
+            <div class="actions">
+              <button class="primary" type="submit">Analyze</button>
+              <span class="status" data-status-for="audio"></span>
+            </div>
+          </form>
+          <div class="result-slot" data-result-for="audio"></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <p>
+      Built on <a href="https://github.com/sadjadeb/DetectZoo" target="_blank" rel="noopener">DetectZoo</a>,
+      created by <a href="https://github.com/sadjadeb" target="_blank" rel="noopener">Sajad Ebrahimi</a>,
+      <a href="https://github.com/nimajam41" target="_blank" rel="noopener">Nima Jamali</a>, and
+      <a href="https://github.com/BardiaShir" target="_blank" rel="noopener">Bardia Shirsalimian</a>.
+    </p>
+    <p><a href="https://github.com/patrickdell" target="_blank" rel="noopener">github.com/patrickdell</a></p>
+  </footer>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>
