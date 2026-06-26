@@ -14,14 +14,25 @@ function setStatus(modality, text) {
   document.querySelector(`[data-status-for="${modality}"]`).textContent = text;
 }
 
+function formatScore(data) {
+  return data.score.toFixed(4);
+}
+
+function formatConfidence(data) {
+  return `${(data.confidence * 100).toFixed(1)}%`;
+}
+
+function verdictFor(data) {
+  return data.label === "ai" ? "Likely AI-generated" : "Likely human-made";
+}
+
 function resultToText(data) {
-  const verdict = data.label === "ai" ? "Likely AI-generated" : "Likely human-made";
   return [
     `DetectZoo — ${data.modality} detection (${data.detector})`,
-    verdict,
+    verdictFor(data),
     `Label: ${data.label}`,
-    `Score: ${data.score.toFixed(4)}`,
-    `Confidence: ${(data.confidence * 100).toFixed(1)}%`,
+    `Score: ${formatScore(data)}`,
+    `Confidence: ${formatConfidence(data)}`,
   ].join("\n");
 }
 
@@ -31,11 +42,11 @@ function renderResult(modality, data) {
   slot.innerHTML = `
     <div class="result ${isAi ? "is-ai" : ""}">
       <p class="eyebrow">Result — ${data.detector}</p>
-      <h2>${isAi ? "Likely AI-generated" : "Likely human-made"}</h2>
+      <h2>${verdictFor(data)}</h2>
       <dl>
         <dt>Label</dt><dd>${data.label}</dd>
-        <dt>Score</dt><dd>${data.score.toFixed(4)}</dd>
-        <dt>Confidence</dt><dd>${(data.confidence * 100).toFixed(1)}%</dd>
+        <dt>Score</dt><dd>${formatScore(data)}</dd>
+        <dt>Confidence</dt><dd>${formatConfidence(data)}</dd>
       </dl>
       <div class="copy-row">
         <button type="button" class="copy-btn" data-copy-result="${modality}">Copy findings</button>
@@ -90,22 +101,11 @@ async function handleSubmit(modality, form, formData) {
   }
 }
 
-document.getElementById("form-text").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  handleSubmit("text", e.target, formData);
-});
-
-document.getElementById("form-image").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  handleSubmit("image", e.target, formData);
-});
-
-document.getElementById("form-audio").addEventListener("submit", (e) => {
-  e.preventDefault();
-  const formData = new FormData(e.target);
-  handleSubmit("audio", e.target, formData);
+["text", "image", "audio"].forEach((modality) => {
+  document.getElementById(`form-${modality}`).addEventListener("submit", (e) => {
+    e.preventDefault();
+    handleSubmit(modality, e.target, new FormData(e.target));
+  });
 });
 
 // Drag-and-drop support for the image and audio file inputs.

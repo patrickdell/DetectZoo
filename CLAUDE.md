@@ -6,7 +6,7 @@ Upstream project: https://github.com/sadjadeb/DetectZoo (Python library, AI-cont
 
 A FastAPI web front-end (`webapp/`) wraps the library for a public demo at **detect.patrickdell.ca**:
 
-- `webapp/main.py` — FastAPI app. `/api/detect/{text,image,audio}` run one detector per modality via `detectzoo.load_detector()`. `/` serves the demo UI, `/about` renders `README.md` + `METHODS_AND_MODELS.md` from the repo root through `markdown` into the branded shell (`webapp/static/about_shell.html`) — this is how the GitHub docs are surfaced in-app without a build step; it re-reads the files from disk on every request, so a `git pull` + container restart is enough to refresh it.
+- `webapp/main.py` — FastAPI app. `/api/detect/{text,image,audio}` run one detector per modality via `detectzoo.load_detector()`. `/` serves the demo UI, `/about` renders `README.md` + `METHODS_AND_MODELS.md` from the repo root through `markdown` into the branded shell (`webapp/static/about_shell.html`) — this is how the GitHub docs are surfaced in-app without a build step. The rendered page is memoized (`_render_about_page`, `lru_cache(maxsize=1)`) rather than re-read/re-rendered on every request, so a `git pull` + **container restart** is needed to pick up doc changes.
 - `webapp/static/` — UI styled per `C:\Code\handbrakedecider\branding CLAUDE.md` (Globe and Mail design system: GM Sans/Pratt fonts, globe-red accent, square corners, AAA contrast).
 - Detectors chosen for CPU-friendliness and no required config: `roberta_base` (text), `aeroblade` (image), `aasist` (audio). Each downloads its model weights on first use per modality — first request per modality is slow (roberta_base ~500MB, the SD v1.1 VAE + LPIPS VGG ~300MB, aasist checkpoint ~1.3MB).
 

@@ -104,8 +104,8 @@ def index():
     return FileResponse(STATIC_DIR / "index.html")
 
 
-@app.get("/about", response_class=HTMLResponse)
-def about():
+@lru_cache(maxsize=1)
+def _render_about_page() -> str:
     sections = []
     for filename, source_url in DOC_SOURCES:
         path = REPO_ROOT / filename
@@ -121,6 +121,11 @@ def about():
         )
     shell = (STATIC_DIR / "about_shell.html").read_text(encoding="utf-8")
     return shell.replace("__CONTENT__", "\n".join(sections))
+
+
+@app.get("/about", response_class=HTMLResponse)
+def about():
+    return _render_about_page()
 
 
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
