@@ -25,18 +25,15 @@ DOC_SOURCES = [
 ]
 
 DETECTOR_NAMES = {
-    "text": "fast_detectgpt",
+    "text": "roberta_base",
     "image": "aeroblade",
-    "audio": "rawnet2",
+    "audio": "aasist",
 }
 
 CACHE_DIR = Path("/data/.detectzoo_data")
 
-# fast_detectgpt defaults to EleutherAI/gpt-neo-2.7B + gpt-j-6B, which are
-# multi-GB and impractical on CPU — the project's own test suite overrides
-# both to "gpt2" for the same reason (see tests/test_text_detectors.py).
 DETECTOR_KWARGS = {
-    "text": {"model_name": "gpt2", "reference_model_name": "gpt2"},
+    "text": {},
     "image": {},
     "audio": {"cache_dir": CACHE_DIR},
 }
